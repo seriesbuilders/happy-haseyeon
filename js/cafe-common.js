@@ -442,6 +442,7 @@ function bindPostReactions(postId) {
   const commentBtn = box.querySelector('[data-reaction="comment"]');
   const shareBtn = box.querySelector('[data-reaction="share"]');
   const likeCountEl = likeBtn?.querySelector('.count');
+  let likeBusy = false;
 
   const isLiked = () => {
     if (!likeKey) return false;
@@ -460,18 +461,40 @@ function bindPostReactions(postId) {
       /* ignore */
     }
   };
+  const setCount = (n) => {
+    if (!likeCountEl) return;
+    likeCountEl.textContent = Math.max(0, Number(n) || 0).toLocaleString();
+  };
 
   if (likeBtn) {
     if (isLiked()) likeBtn.classList.add('is-active');
-    likeBtn.addEventListener('click', (e) => {
+    likeBtn.addEventListener('click', async (e) => {
       e.preventDefault();
+      if (!id || likeBusy) return;
       const on = !likeBtn.classList.contains('is-active');
+      const prevCount =
+        parseInt(String(likeCountEl?.textContent || '0').replace(/,/g, ''), 10) || 0;
+
+      likeBusy = true;
       likeBtn.classList.toggle('is-active', on);
       setLiked(on);
-      if (likeCountEl) {
-        let n = parseInt(String(likeCountEl.textContent || '0').replace(/,/g, ''), 10) || 0;
-        n = Math.max(0, n + (on ? 1 : -1));
-        likeCountEl.textContent = n.toLocaleString();
+      setCount(prevCount + (on ? 1 : -1));
+
+      try {
+        const res = await fetch(`/api/posts/${id}/like`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: on ? 'like' : 'unlike' }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'like failed');
+        if (data.likes != null) setCount(data.likes);
+      } catch {
+        likeBtn.classList.toggle('is-active', !on);
+        setLiked(!on);
+        setCount(prevCount);
+      } finally {
+        likeBusy = false;
       }
     });
   }
