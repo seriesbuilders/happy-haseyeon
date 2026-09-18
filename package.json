@@ -7,10 +7,12 @@
     "db:init": "wrangler d1 execute happy-haseyeon-db --local --persist-to=.wrangler/state --file=./schema.sql",
     "db:seed": "wrangler d1 execute happy-haseyeon-db --local --persist-to=.wrangler/state --file=./seed.sql",
     "deploy": "wrangler pages deploy . --project-name=happy-haseyeon --commit-dirty=true",
+    "test:paste": "node scripts/test-naver-source-strip.mjs",
     "db:remote": "wrangler d1 execute happy-haseyeon-db --remote --file=./schema.sql",
     "db:remote:seed": "wrangler d1 execute happy-haseyeon-db --remote --file=./seed.sql"
   },
   "devDependencies": {
+    "jsdom": "^30.1.0",
     "wrangler": "^4.24.0"
   }
 }
