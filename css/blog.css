@@ -109,6 +109,19 @@
   font-weight: 600;
 }
 
+/* 광고 랜딩: 장식용 컨트롤 (클릭/포커스 없음) */
+.blog-icon-btn.is-inert,
+.neighbor-btn.is-inert {
+  pointer-events: none;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.neighbor-btn.is-inert {
+  opacity: 1;
+}
+
 .post-title {
   padding: 16px 16px 12px;
   font-family: var(--font-title);
