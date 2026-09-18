@@ -455,15 +455,20 @@
           <div class="toolbar">
             <button type="button" class="btn btn-primary" id="btnNewAdPost">광고 블로그 작성</button>
             <button type="button" class="btn btn-ghost" id="btnRefreshAdPosts">새로고침</button>
+            <button type="button" class="btn btn-danger" id="btnBulkDeleteAdPosts" disabled>선택 삭제</button>
           </div>
           <p class="form-hint" style="margin-bottom:12px">
             광고 블로그는 <strong>메인(index)에 노출되지 않습니다</strong>.
             목록의 URL을 누르면 해당 광고 글로 이동합니다.
+            제목 앞 체크박스로 여러 글을 선택한 뒤 <strong>선택 삭제</strong>할 수 있습니다.
           </p>
           <div class="table-wrap">
             <table class="table">
               <thead>
                 <tr>
+                  <th class="th-check">
+                    <input type="checkbox" id="adPostsSelectAll" title="전체 선택" aria-label="전체 선택" />
+                  </th>
                   <th>제목</th>
                   <th>도메인 URL</th>
                   <th>추천</th>
@@ -1056,6 +1061,6 @@
   <script src="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/src/lang/ko.js"></script>
   <script src="/js/config.js"></script>
   <script src="/js/naver-paste-sanitize.js?v=20260918-react1"></script>
-  <script src="/js/admin.js?v=20260918-react1"></script>
+  <script src="/js/admin.js?v=20260918-bulkdel"></script>
 </body>
 </html>

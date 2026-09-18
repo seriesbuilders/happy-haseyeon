@@ -586,6 +586,22 @@
   background: var(--admin-table-head);
 }
 
+.table .th-check,
+.table .td-check {
+  width: 36px;
+  text-align: center;
+  padding-left: 10px;
+  padding-right: 4px;
+}
+
+.table .th-check input,
+.table .td-check input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
 .table .title-link {
   color: var(--admin-accent);
   font-weight: 600;

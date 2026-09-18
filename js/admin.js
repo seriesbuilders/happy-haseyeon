@@ -1236,11 +1236,36 @@ function renderPostsTable(posts) {
     .join('');
 }
 
+function syncAdPostsBulkDeleteUi() {
+  const btn = document.getElementById('btnBulkDeleteAdPosts');
+  const selectAll = document.getElementById('adPostsSelectAll');
+  const boxes = [
+    ...document.querySelectorAll('#adPostsBody input[type="checkbox"][data-ad-bulk-id]'),
+  ];
+  const checked = boxes.filter((b) => b.checked);
+  if (btn) {
+    btn.disabled = checked.length === 0;
+    btn.textContent =
+      checked.length > 0 ? `선택 삭제 (${checked.length})` : '선택 삭제';
+  }
+  if (selectAll) {
+    selectAll.checked = boxes.length > 0 && checked.length === boxes.length;
+    selectAll.indeterminate =
+      checked.length > 0 && checked.length < boxes.length;
+  }
+}
+
 function renderAdPostsTable(posts) {
   const tbody = document.getElementById('adPostsBody');
   if (!tbody) return;
+  const selectAll = document.getElementById('adPostsSelectAll');
+  if (selectAll) {
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+  }
   if (!posts?.length) {
-    tbody.innerHTML = '<tr><td colspan="5">등록된 광고 블로그가 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6">등록된 광고 블로그가 없습니다.</td></tr>';
+    syncAdPostsBulkDeleteUi();
     return;
   }
   tbody.innerHTML = posts
@@ -1249,6 +1274,9 @@ function renderAdPostsTable(posts) {
       const href = postHref(p.slug, { ad: true });
       return `
       <tr>
+        <td class="td-check">
+          <input type="checkbox" data-ad-bulk-id="${p.id}" aria-label="${escapeHtml(p.title)} 선택" />
+        </td>
         <td><button type="button" class="title-link" data-edit-ad="${p.id}">${escapeHtml(p.title)}</button></td>
         <td><a class="slug ad-full-url" href="${href}" target="_blank" rel="noopener">${escapeHtml(fullUrl)}</a></td>
         <td>${Number(p.likes).toLocaleString()}</td>
@@ -1260,6 +1288,7 @@ function renderAdPostsTable(posts) {
       </tr>`;
     })
     .join('');
+  syncAdPostsBulkDeleteUi();
 }
 
 async function loadPosts() {
@@ -1289,9 +1318,74 @@ async function loadAdPosts() {
       const tbody = document.getElementById('adPostsBody');
       if (tbody) {
         tbody.innerHTML =
-          '<tr><td colspan="5">광고 목록을 불러오지 못했습니다.</td></tr>';
+          '<tr><td colspan="6">광고 목록을 불러오지 못했습니다.</td></tr>';
       }
     }
+  }
+}
+
+async function bulkDeleteAdPosts() {
+  const ids = [
+    ...document.querySelectorAll(
+      '#adPostsBody input[type="checkbox"][data-ad-bulk-id]:checked'
+    ),
+  ]
+    .map((el) => Number(el.dataset.adBulkId))
+    .filter((id) => id > 0);
+  if (!ids.length) {
+    toast('삭제할 글을 선택하세요.', false);
+    return;
+  }
+  const ok = await showConfirm({
+    title: '광고 블로그 일괄 삭제',
+    message: `선택한 ${ids.length}개 글을 삭제할까요?\n댓글도 함께 삭제되며 되돌릴 수 없습니다.`,
+    okText: '삭제',
+    cancelText: '취소',
+  });
+  if (!ok) return;
+
+  showLoading(
+    `선택한 ${ids.length}개 글을 삭제하고 있습니다…`,
+    '일괄 삭제 중'
+  );
+  let done = 0;
+  const failed = [];
+  try {
+    for (const id of ids) {
+      try {
+        await adminFetch(`/api/posts/${id}`, { method: 'DELETE' });
+        done += 1;
+      } catch (e) {
+        if (e.message === 'unauthorized') {
+          closeUiModal(false);
+          return;
+        }
+        failed.push(id);
+      }
+    }
+    closeUiModal(true);
+    await loadAdPosts();
+    await loadPosts();
+    if (failed.length) {
+      await showAlert({
+        title: '일부 삭제 실패',
+        message: `${done}개 삭제됨 · ${failed.length}개 실패`,
+        variant: 'error',
+      });
+    } else {
+      await showAlert({
+        title: '삭제 완료',
+        message: `광고 블로그 ${done}개가 삭제되었습니다.`,
+        variant: 'success',
+      });
+    }
+  } catch (e) {
+    closeUiModal(false);
+    await showAlert({
+      title: '삭제 실패',
+      message: e.message || '일괄 삭제에 실패했습니다.',
+      variant: 'error',
+    });
   }
 }
 
@@ -4072,6 +4166,23 @@ function bindAdminUI() {
   };
 
   document.getElementById('btnRefreshAdPosts')?.addEventListener('click', () => loadAdPosts());
+  document.getElementById('btnBulkDeleteAdPosts')?.addEventListener('click', () =>
+    bulkDeleteAdPosts()
+  );
+  document.getElementById('adPostsSelectAll')?.addEventListener('change', (e) => {
+    const on = !!e.target.checked;
+    document
+      .querySelectorAll('#adPostsBody input[type="checkbox"][data-ad-bulk-id]')
+      .forEach((box) => {
+        box.checked = on;
+      });
+    syncAdPostsBulkDeleteUi();
+  });
+  document.getElementById('adPostsBody')?.addEventListener('change', (e) => {
+    if (e.target.matches('input[type="checkbox"][data-ad-bulk-id]')) {
+      syncAdPostsBulkDeleteUi();
+    }
+  });
   document.getElementById('btnNewAdPost')?.addEventListener('click', () => openWrite(AD_CATEGORY));
 
   document.getElementById('btnAdStatsSearch')?.addEventListener('click', () => {
