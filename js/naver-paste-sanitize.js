@@ -1,6 +1,7 @@
 /**
  * 네이버 블로그 복붙 정리
- * - [출처] / ［출처］ 인용 블록 제거 (글 중간·끝 모두)
+ * - [출처] / ［출처］ 인용 블록 제거
+ * - blog.naver.com URL / OG링크 / 링크카드 제거 (중간 삽입 포함)
  * - 동일 본문 반복 붙여넣기 축약
  */
 (function (root, factory) {
@@ -13,6 +14,10 @@
   const SOURCE_LABEL_RE = /\[\s*출처\s*\]|［\s*출처\s*］/;
   const AUTHOR_RE = /\|\s*작성자\s*\S+/;
   const SOURCE_START_RE = /^\s*(?:\[\s*출처\s*\]|［\s*출처\s*］|출처\s*[:：])/;
+  const NAVER_BLOG_HOST_RE =
+    /^(?:www\.)?(?:m\.)?blog\.naver\.com$/i;
+  const NAVER_BLOG_URL_RE =
+    /https?:\/\/(?:www\.)?(?:m\.)?blog\.naver\.com\/[^\s<>"')\]]+/gi;
 
   function cleanText(s) {
     return String(s || '')
@@ -34,6 +39,20 @@
     return doc.getElementById('__nv_paste_root__');
   }
 
+  function isNaverBlogUrl(url) {
+    const raw = String(url || '').trim();
+    if (!raw) return false;
+    try {
+      const u = new URL(raw);
+      const host = u.hostname.replace(/^www\./i, '').toLowerCase();
+      if (NAVER_BLOG_HOST_RE.test(host)) return true;
+      if (host === 'naver.me') return false;
+      return false;
+    } catch {
+      return /(?:^|\/\/)(?:www\.)?(?:m\.)?blog\.naver\.com\//i.test(raw);
+    }
+  }
+
   /** 출처 인용 블록으로 보이는지 */
   function isCitationText(t) {
     const text = cleanText(t);
@@ -43,12 +62,10 @@
     }
     if (SOURCE_START_RE.test(text) && text.length <= 40) return true;
     if (SOURCE_LABEL_RE.test(text) && text.length <= 80) return true;
-    // [출처] + 제목만 (작성자 줄이 다음 형제로 분리된 경우)
     if (SOURCE_LABEL_RE.test(text) && text.length <= 500) {
       const after = text.replace(SOURCE_LABEL_RE, '').trim();
       if (!after || after.length < 360) return true;
     }
-    // 작성자 줄만
     if (AUTHOR_RE.test(text) && text.length <= 360 && /\[.+\]/.test(text)) {
       return true;
     }
@@ -71,6 +88,128 @@
     return best;
   }
 
+  function removeEl(el) {
+    try {
+      el?.remove?.();
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  /** 네이버 블로그 URL / OG임베드 / 링크카드 제거 */
+  function stripNaverBlogEmbeds(root) {
+    if (!root) return;
+
+    // 1) 스마트에디터 OG 링크 모듈
+    for (const el of [
+      ...root.querySelectorAll(
+        '.se-oglink, .se-module-oglink, [class*="se-oglink"], [class*="oglink"]'
+      ),
+    ]) {
+      const wrap =
+        el.closest?.('.se-component, .se-section, .se-module, figure, p, div') || el;
+      if (wrap && wrap !== root) removeEl(wrap);
+      else removeEl(el);
+    }
+
+    // 2) 우리 에디터 링크카드 중 blog.naver.com
+    for (const table of [...root.querySelectorAll('table.link-card, a.link-card')]) {
+      const url =
+        table.getAttribute('data-url') ||
+        table.querySelector?.('a[href]')?.getAttribute('href') ||
+        table.getAttribute('href') ||
+        '';
+      const domain = table.getAttribute('data-domain') || '';
+      const blob = `${url}\n${domain}\n${table.outerHTML || ''}`;
+      if (!isNaverBlogUrl(url) && !/blog\.naver\.com/i.test(blob)) continue;
+      const block =
+        table.closest?.('.link-card-block, .link-card-wrap') || table.parentElement;
+      const prev = (block || table).previousElementSibling;
+      if (prev?.classList?.contains('link-card-url-line')) removeEl(prev);
+      if (block && block !== root) removeEl(block);
+      else removeEl(table);
+    }
+    for (const line of [...root.querySelectorAll('.link-card-url-line')]) {
+      const href =
+        line.querySelector('a[href]')?.getAttribute('href') || cleanText(line.textContent);
+      const next = line.nextElementSibling;
+      const looksNaver =
+        isNaverBlogUrl(href) || /blog\.naver\.com/i.test(line.innerHTML || '');
+      const orphanEmpty =
+        !cleanText(line.textContent) &&
+        (!next || next.classList?.contains('link-card-block') || !cleanText(next.textContent || ''));
+      if (looksNaver || orphanEmpty) removeEl(line);
+    }
+    // 빈 link-card-block 잔여 제거
+    for (const block of [...root.querySelectorAll('.link-card-block')]) {
+      const url = block.querySelector?.('[data-url]')?.getAttribute('data-url') || '';
+      const domain =
+        block.querySelector?.('[data-domain]')?.getAttribute('data-domain') || '';
+      if (
+        /blog\.naver\.com/i.test(`${url} ${domain} ${block.innerHTML || ''}`) ||
+        !block.querySelector('table.link-card, a.link-card')
+      ) {
+        if (/blog\.naver\.com/i.test(`${url} ${domain} ${block.innerHTML || ''}`)) {
+          removeEl(block);
+        }
+      }
+    }
+
+    // 3) <a href="blog.naver.com...">
+    for (const a of [...root.querySelectorAll('a[href]')]) {
+      const href = a.getAttribute('href') || '';
+      if (!isNaverBlogUrl(href)) continue;
+      const host = a.closest('p, div, li, td, span') || a;
+      const hostText = cleanText(host.textContent);
+      const onlyLink =
+        hostText.length <= 400 &&
+        (!hostText || isNaverBlogUrl(hostText) || hostText === cleanText(a.textContent));
+      // 문단이 URL·짧은 제목 링크면 통째 삭제
+      if (onlyLink || hostText.length < 120) {
+        removeEl(host === root ? a : host);
+      } else {
+        // 본문 문장 속 인라인 링크는 링크만 해제(텍스트는 유지하되 URL 텍스트면 삭제)
+        const label = cleanText(a.textContent);
+        if (isNaverBlogUrl(label) || label.length < 4) removeEl(a);
+        else {
+          const span = a.ownerDocument.createTextNode(a.textContent || '');
+          a.replaceWith(span);
+        }
+      }
+    }
+
+    // 4) 문단 전체가 네이버 블로그 URL
+    for (const el of [...root.querySelectorAll('p, div, li, span')]) {
+      if (!el.isConnected) continue;
+      if (el.querySelector?.('img, table, .link-card, .link-card-block')) continue;
+      const t = cleanText(el.textContent);
+      if (!t) continue;
+      if (isNaverBlogUrl(t) || (/^https?:\/\/\S+$/i.test(t) && isNaverBlogUrl(t))) {
+        removeEl(el);
+      }
+    }
+
+    // 5) 텍스트 노드 안 단독 URL 제거
+    const textNodes = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    for (const node of textNodes) {
+      if (!node.isConnected) continue;
+      const val = node.nodeValue || '';
+      if (!/blog\.naver\.com/i.test(val)) continue;
+      const next = val.replace(NAVER_BLOG_URL_RE, '').replace(/[ \t]{2,}/g, ' ');
+      if (!next.trim()) {
+        const parent = node.parentElement;
+        node.nodeValue = '';
+        if (parent && !cleanText(parent.textContent) && !parent.querySelector?.('img,table')) {
+          removeEl(parent);
+        }
+      } else {
+        node.nodeValue = next;
+      }
+    }
+  }
+
   function stripNaverSourceCitation(root) {
     if (!root) return;
 
@@ -83,15 +222,12 @@
       victims.add(pickCitationTarget(el, root));
     };
 
-    // 1) 명시적 출처 라벨이 있는 노드
     for (const el of [...root.querySelectorAll('p, div, span, li, td, th, a, table, blockquote, section, article')]) {
       const t = cleanText(el.textContent);
       if (!SOURCE_LABEL_RE.test(t) && !AUTHOR_RE.test(t)) continue;
-      // 본문 전체가 잡히지 않게: 출처/작성자 인용 형태만
       if (isCitationText(t)) consider(el);
     }
 
-    // 2) [출처]만 있는 줄 + 바로 다음 "| 작성자" 줄
     for (const el of [...root.querySelectorAll('p, div, li, span')]) {
       if (!el.isConnected) continue;
       const t = cleanText(el.textContent);
@@ -110,15 +246,8 @@
       }
     }
 
-    for (const el of victims) {
-      try {
-        el.remove();
-      } catch (_) {
-        /* ignore */
-      }
-    }
+    for (const el of victims) removeEl(el);
 
-    // 3) 인라인: 한 노드 안에 본문 + [출처]…작성자
     const textNodes = [];
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) textNodes.push(walker.currentNode);
@@ -129,7 +258,6 @@
       if (idx < 0) continue;
       const after = val.slice(idx);
       if (!(AUTHOR_RE.test(after) || after.length <= 500)) continue;
-      // 출처 앞이 긴 본문이면 출처 이후만 절단
       node.nodeValue = val.slice(0, idx);
       let sib = node.nextSibling;
       while (sib) {
@@ -140,7 +268,9 @@
       }
     }
 
-    // 4) 말미 잔여: 빈 줄 / 네이버 URL만 / oglink
+    // 출처 제거 후 네이버 임베드도 정리
+    stripNaverBlogEmbeds(root);
+
     let guard = 0;
     while (root.lastElementChild && guard++ < 30) {
       const last = root.lastElementChild;
@@ -151,12 +281,12 @@
         !!last.querySelector?.('.se-oglink, .se-module-oglink, [class*="oglink"]');
       const onlyNaverUrl =
         t.length > 0 &&
-        t.length < 220 &&
-        /^https?:\/\/(m\.)?blog\.naver\.com\//i.test(t) &&
-        !/[가-힣]{8,}/.test(t);
+        t.length < 500 &&
+        isNaverBlogUrl(t) &&
+        !/[가-힣]{12,}/.test(t);
       const emptyish = !t;
       if (hasOglink || onlyNaverUrl || (emptyish && root.children.length > 1) || isCitationText(t)) {
-        last.remove();
+        removeEl(last);
         continue;
       }
       break;
@@ -166,32 +296,37 @@
   function stripNaverSourceFromPlain(text) {
     let s = String(text || '');
     if (!s.trim()) return s;
-    // 블록 단위: [출처] … 작성자 xxx 통째 삭제 (여러 번)
     s = s.replace(
       /(?:\[\s*출처\s*\]|［\s*출처\s*］)[^\n]{0,20}(?:\r?\n|\s)*[^\n]{0,400}\|\s*작성자\s*[^\n]{1,60}/gi,
       ''
     );
     s = s.replace(/(?:\[\s*출처\s*\]|［\s*출처\s*］)[^\n]{0,500}/gi, '');
     s = s.replace(/(?:^|\n)[^\n]*\|\s*작성자\s+[^\n]{1,60}/gi, (line) => {
-      // 출처 없는 일반 작성자 표기는 거의 없음 — 인용 줄로 보고 제거
       return /\[.+\]/.test(line) || /작성자/.test(line) ? '\n' : line;
     });
+    // 네이버 블로그 URL 줄 제거
+    s = s.replace(/(?:^|\n)\s*https?:\/\/(?:www\.)?(?:m\.)?blog\.naver\.com\/[^\s\n]+/gi, '\n');
+    s = s.replace(NAVER_BLOG_URL_RE, '');
     return s.replace(/\n{3,}/g, '\n\n').trim();
   }
 
   function stripNaverSourceFromHtmlString(html) {
     let s = String(html || '');
     if (!s) return s;
-    // 태그 사이 공백 포함한 [출처]…작성자 패턴
     s = s.replace(
       /(?:\[\s*출처\s*\]|［\s*출처\s*］)[\s\S]{0,700}?\|\s*작성자\s*[^<]{1,60}/gi,
       ''
     );
-    // [출처]만 있는 태그 덩어리
     s = s.replace(
       /<(p|div|span|li|td)(\s[^>]*)?>\s*(?:\[\s*출처\s*\]|［\s*출처\s*］)\s*<\/\1>/gi,
       ''
     );
+    // href / 텍스트의 blog.naver.com URL
+    s = s.replace(
+      /<a\b[^>]*href=["'][^"']*blog\.naver\.com[^"']*["'][^>]*>[\s\S]*?<\/a>/gi,
+      ''
+    );
+    s = s.replace(NAVER_BLOG_URL_RE, '');
     return s;
   }
 
@@ -237,16 +372,27 @@
   function sanitizePastedHtml(html) {
     if (!html || typeof html !== 'string') return '';
     try {
-      let source = stripNaverSourceFromHtmlString(html);
-      const root = parseRoot(source);
-      if (!root) return source;
+      // DOM 먼저: URL이 살아 있을 때 카드/OG/앵커 식별
+      const root = parseRoot(html);
+      if (!root) return stripNaverSourceFromHtmlString(html);
       root.querySelectorAll('script, style, noscript, meta, link').forEach((el) => el.remove());
       stripNaverSourceCitation(root);
-      // 한 번 더: DOM 정리 후에도 문자열 패턴 잔여 제거
-      let out = stripNaverSourceFromHtmlString(root.innerHTML);
+      stripNaverBlogEmbeds(root);
+      let out = root.innerHTML;
+      out = stripNaverSourceFromHtmlString(out);
       const root2 = parseRoot(out);
       if (root2) {
+        stripNaverBlogEmbeds(root2);
         stripNaverSourceCitation(root2);
+        // 빈 문단 정리
+        for (const el of [...root2.querySelectorAll('p, div')]) {
+          if (!cleanText(el.textContent) && !el.querySelector?.('img,table,br,hr')) {
+            // keep <p><br></p> style empties used by editor — only remove totally empty
+            if (!(el.innerHTML || '').includes('br') && !(el.innerHTML || '').trim()) {
+              removeEl(el);
+            }
+          }
+        }
         out = root2.innerHTML;
       }
       return collapseRepeatedPasteHtml(out);
@@ -258,9 +404,11 @@
   return {
     sanitizePastedHtml,
     stripNaverSourceCitation,
+    stripNaverBlogEmbeds,
     stripNaverSourceFromPlain,
     stripNaverSourceFromHtmlString,
     collapseRepeatedPasteHtml,
     isCitationText,
+    isNaverBlogUrl,
   };
 });

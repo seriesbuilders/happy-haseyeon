@@ -721,6 +721,11 @@ function ensureEditor() {
         extractSingleUrl(fromClean) ||
         extractSingleUrl(htmlRaw);
       if (urlOnly) {
+        // 네이버 블로그 URL만 붙여넣은 경우 카드 생성하지 않음
+        if (isNaverBlogUrl(urlOnly)) {
+          stopPasteEvent();
+          return false;
+        }
         stopPasteEvent();
         editorPasteLock = true;
         setTimeout(() => {
@@ -857,7 +862,9 @@ let linkConvertTimer = null;
 function debounceConvertLinks() {
   clearTimeout(linkConvertTimer);
   linkConvertTimer = setTimeout(() => {
-    convertPlainLinksInEditor().finally(() => hardenLinkCardsInEditor());
+    convertPlainLinksInEditor()
+      .then(() => scrubNaverSourceInEditor())
+      .finally(() => hardenLinkCardsInEditor());
   }, 200);
 }
 
@@ -1924,27 +1931,42 @@ function collapseRepeatedPasteHtml(html) {
   return html;
 }
 
-/** 에디터 DOM에서 출처 블록 재스캔 제거 */
+/** 에디터 DOM에서 출처·네이버블로그 임베드 재스캔 제거 */
 function scrubNaverSourceInEditor() {
   if (!suneditor) return;
   try {
     const wysiwyg = suneditor.core?.context?.element?.wysiwyg;
     if (!wysiwyg) return;
-    stripNaverSourceCitation(wysiwyg);
     const api = getNaverPasteApi();
+    if (typeof api.stripNaverSourceCitation === 'function') {
+      api.stripNaverSourceCitation(wysiwyg);
+    }
+    if (typeof api.stripNaverBlogEmbeds === 'function') {
+      api.stripNaverBlogEmbeds(wysiwyg);
+    }
     if (typeof api.stripNaverSourceFromHtmlString === 'function') {
       const cleaned = api.stripNaverSourceFromHtmlString(wysiwyg.innerHTML);
       if (cleaned !== wysiwyg.innerHTML) {
-        // 문자열 잔여만 있을 때 DOM 재파싱
         const tmp = document.createElement('div');
         tmp.innerHTML = cleaned;
-        stripNaverSourceCitation(tmp);
+        if (typeof api.stripNaverSourceCitation === 'function') {
+          api.stripNaverSourceCitation(tmp);
+        }
+        if (typeof api.stripNaverBlogEmbeds === 'function') {
+          api.stripNaverBlogEmbeds(tmp);
+        }
         wysiwyg.innerHTML = tmp.innerHTML;
       }
     }
   } catch (e) {
     console.warn('scrubNaverSourceInEditor', e);
   }
+}
+
+function isNaverBlogUrl(url) {
+  const api = getNaverPasteApi();
+  if (typeof api.isNaverBlogUrl === 'function') return api.isNaverBlogUrl(url);
+  return /blog\.naver\.com/i.test(String(url || ''));
 }
 
 /**
@@ -2445,15 +2467,21 @@ async function convertPlainLinksInEditor() {
   wysiwyg.dataset.linkConverting = '1';
 
   try {
+    // 변환 전에 네이버 블로그 URL/카드부터 제거 (중간 삽입 방지)
+    scrubNaverSourceInEditor();
     ensureLinkCardUrlLines(wysiwyg);
 
-    // 1) 문단 전체가 URL인 경우 → <a>
+    // 1) 문단 전체가 URL인 경우 → <a> (네이버 블로그 URL은 삭제)
     const blocks = [...wysiwyg.querySelectorAll('p, div, li')];
     for (const el of blocks) {
       if (el.closest('a, .link-card, .link-card-block, .link-card-url-line, .link-card-wrap, table.link-card')) continue;
       if (el.querySelector('a, img, .link-card, .link-card-block, .link-card-url-line, table.link-card')) continue;
       const url = extractSingleUrl(el.textContent || '');
       if (!url) continue;
+      if (isNaverBlogUrl(url)) {
+        el.remove();
+        continue;
+      }
       const a = document.createElement('a');
       a.href = url;
       a.textContent = url;
@@ -2480,6 +2508,18 @@ async function convertPlainLinksInEditor() {
     for (const node of textNodes) {
       const url = extractSingleUrl(node.textContent);
       if (!url) continue;
+      if (isNaverBlogUrl(url)) {
+        try {
+          const parent = node.parentElement;
+          node.remove();
+          if (parent && !(parent.textContent || '').trim() && !parent.querySelector?.('img,table,a')) {
+            parent.remove();
+          }
+        } catch {
+          /* ignore */
+        }
+        continue;
+      }
       const a = document.createElement('a');
       a.href = url;
       a.textContent = url;
@@ -2492,19 +2532,41 @@ async function convertPlainLinksInEditor() {
       }
     }
 
-    // 2) 일반 <a> → 링크 카드
+    // 2) 일반 <a> → 링크 카드 (네이버 블로그는 카드 만들지 않고 삭제)
     const anchors = [
       ...wysiwyg.querySelectorAll(
         'a[href]:not(.link-card):not(.link-card-url):not(.link-card-title):not(.link-card-desc):not(.link-card-domain):not([data-link-converting])'
       ),
     ];
-    if (!anchors.length) return;
+    if (!anchors.length) {
+      scrubNaverSourceInEditor();
+      return;
+    }
 
     for (const a of anchors) {
       if (a.closest('.link-card, .link-card-url, .link-card-block, .link-card-url-line, .link-card-wrap, table.link-card')) continue;
       const rawHref = a.getAttribute('href') || a.textContent || '';
       const url = extractSingleUrl(rawHref) || normalizeExternalUrl(rawHref);
       if (!url || !/^https?:\/\//i.test(url)) continue;
+
+      if (isNaverBlogUrl(url)) {
+        const host = a.closest('p, div, li') || a;
+        try {
+          const hostText = String(host.textContent || '')
+            .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (host !== a && hostText.length < 400) host.remove();
+          else a.remove();
+        } catch {
+          try {
+            a.remove();
+          } catch {
+            /* ignore */
+          }
+        }
+        continue;
+      }
 
       a.setAttribute('data-link-converting', '1');
       let align = 'center';
@@ -2586,6 +2648,7 @@ async function convertPlainLinksInEditor() {
     }
   } finally {
     delete wysiwyg.dataset.linkConverting;
+    scrubNaverSourceInEditor();
     hardenLinkCardsInEditor();
   }
 }
