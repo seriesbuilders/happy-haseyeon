@@ -210,6 +210,34 @@
   function stripNaverSourceCitation(root) {
     if (!root) return;
 
+    // 0) [출처]/출처원문 이 나오는 지점부터 문서 끝까지 삭제
+    //    (본문 + 출처원문이 한 번에 붙어 들어오는 케이스)
+    const kids = [...root.children];
+    let cutAt = -1;
+    for (let i = 0; i < kids.length; i++) {
+      const t = cleanText(kids[i].textContent);
+      if (
+        SOURCE_LABEL_RE.test(t) ||
+        SOURCE_START_RE.test(t) ||
+        (/출처\s*원문|원문\s*보기|퍼가기/i.test(t) && t.length < 80)
+      ) {
+        cutAt = i;
+        break;
+      }
+      // 자식 안에 [출처] 라벨이 있으면 그 블록부터 절단
+      for (const p of kids[i].querySelectorAll?.('p, div, span, li') || []) {
+        const pt = cleanText(p.textContent);
+        if (SOURCE_LABEL_RE.test(pt) || SOURCE_START_RE.test(pt)) {
+          cutAt = i;
+          break;
+        }
+      }
+      if (cutAt >= 0) break;
+    }
+    if (cutAt >= 0) {
+      kids.slice(cutAt).forEach((el) => removeEl(el));
+    }
+
     const victims = new Set();
 
     const consider = (el) => {
@@ -220,6 +248,7 @@
     };
 
     for (const el of [...root.querySelectorAll('p, div, span, li, td, th, a, table, blockquote, section, article')]) {
+      if (!el.isConnected) continue;
       const t = cleanText(el.textContent);
       if (!SOURCE_LABEL_RE.test(t) && !AUTHOR_RE.test(t)) continue;
       if (isCitationText(t)) consider(el);
@@ -254,8 +283,21 @@
       const idx = val.search(SOURCE_LABEL_RE);
       if (idx < 0) continue;
       const after = val.slice(idx);
-      if (!(AUTHOR_RE.test(after) || after.length <= 500)) continue;
+      if (!(AUTHOR_RE.test(after) || after.length <= 500 || /원문/.test(after))) continue;
       node.nodeValue = val.slice(0, idx);
+      // 같은 블록 이후 형제 + 루트 이후 형제 제거
+      let block = node.parentElement;
+      while (block && block.parentElement && block.parentElement !== root) {
+        block = block.parentElement;
+      }
+      if (block && block.parentElement === root) {
+        let sib = block.nextElementSibling;
+        while (sib) {
+          const n = sib.nextElementSibling;
+          removeEl(sib);
+          sib = n;
+        }
+      }
       let sib = node.nextSibling;
       while (sib) {
         const n = sib.nextSibling;
@@ -263,6 +305,7 @@
         else sib.parentNode?.removeChild(sib);
         sib = n;
       }
+      break;
     }
 
     // 출처 제거 후 네이버 임베드도 정리

@@ -2004,7 +2004,7 @@ function isNaverBlogUrl(url) {
  */
 
 function buildLinkCardHtml({ url, title, description, image, domain }, opts = {}) {
-  // 상단 URL(중앙) + 세로 카드(중앙). 이미지는 td background로 꽉 채움(SunEditor img 분리 방지)
+  // OG 카드만 표시 (원본 URL 텍스트 줄은 넣지 않음)
   const align = opts.align === 'left' ? 'left' : 'center';
   const safeUrl = escapeHtml(decodeHtmlEntities(url || ''));
   const safeTitle = escapeHtml(decodeHtmlEntities(title || domain || url || ''));
@@ -2037,11 +2037,9 @@ function buildLinkCardHtml({ url, title, description, image, domain }, opts = {}
     `</tbody></table>`;
 
   // link-card-block 은 div 필수: <p><table> 은 무효 HTML이라 저장 시 카드가 비워짐
+  // 제품/외부 링크: URL 주소 텍스트는 노출하지 않고 OG 카드만
   return (
     `<p><br></p>` +
-    `<p class="link-card-url-line" data-lc-part="url" style="text-align:${align};margin:0 0 8px;">` +
-    `<a class="link-card-url" href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a>` +
-    `</p>` +
     `<div class="link-card-block" data-lc-part="card" data-align="${align}" style="text-align:${align};margin:0 0 16px;">` +
     table +
     `</div>` +
@@ -2054,6 +2052,8 @@ function hardenLinkCardsInEditor() {
   if (!suneditor) return;
   const wysiwyg = suneditor.core?.context?.element?.wysiwyg;
   if (!wysiwyg) return;
+
+  stripLinkCardUrlLines(wysiwyg);
 
   wysiwyg.querySelectorAll('table.link-card').forEach((table) => {
     const align =
@@ -2076,10 +2076,9 @@ function hardenLinkCardsInEditor() {
       block.style.textAlign = align;
       block.setAttribute('data-align', align);
     }
-    const urlLine = block?.previousElementSibling;
-    if (urlLine?.classList?.contains('link-card-url-line')) {
-      urlLine.style.textAlign = align;
-    }
+    // URL 주소 줄은 제거 (카드·OG만 유지)
+    const prevUrl = block?.previousElementSibling;
+    if (prevUrl?.classList?.contains('link-card-url-line')) prevUrl.remove();
 
     table.querySelectorAll('.se-component, .se-image-container, figure').forEach((wrap) => {
       const img = wrap.querySelector('img');
@@ -2156,11 +2155,9 @@ function prepareLinkCardsHtml(html) {
         },
         { align }
       );
-      const urlLine = wrap.querySelector('.link-card-url-line');
       const newBlock = wrap.querySelector('.link-card-block');
-      if (urlLine && prev?.classList?.contains('link-card-url-line')) {
-        prev.replaceWith(urlLine);
-      }
+      // 기존 URL 주소 줄은 제거하고 카드만 유지
+      if (prev?.classList?.contains('link-card-url-line')) prev.remove();
       if (newBlock) empty.replaceWith(newBlock);
     }
 
@@ -2247,25 +2244,25 @@ function prepareLinkCardsHtml(html) {
         { url, title, description, image, domain },
         { align }
       );
-      const newUrlLine = rebuilt.querySelector('.link-card-url-line');
       const newBlock = rebuilt.querySelector('.link-card-block');
 
-      // 기존 URL 줄 / 블록 교체
+      // 기존 URL 주소 줄 제거 + 카드만 교체
       let urlLine = block?.previousElementSibling;
-      if (!urlLine?.classList?.contains('link-card-url-line')) {
-        urlLine = null;
+      if (urlLine?.classList?.contains('link-card-url-line')) {
+        urlLine.remove();
       }
       if (block && newBlock) {
-        if (urlLine && newUrlLine) urlLine.replaceWith(newUrlLine);
-        else if (newUrlLine) block.parentNode.insertBefore(newUrlLine, block);
         block.replaceWith(newBlock);
       } else if (table && newBlock) {
         const parent = table.parentNode;
-        if (urlLine && newUrlLine) urlLine.replaceWith(newUrlLine);
-        else if (newUrlLine) parent.insertBefore(newUrlLine, table);
+        const prev = table.previousElementSibling;
+        if (prev?.classList?.contains('link-card-url-line')) prev.remove();
         table.replaceWith(newBlock.querySelector('table.link-card') || newBlock);
       }
     }
+
+    // 남아 있는 URL 주소 줄 전부 제거
+    root.querySelectorAll('.link-card-url-line, [data-lc-part="url"]').forEach((el) => el.remove());
 
     return root.innerHTML;
   } catch (e) {
@@ -2477,45 +2474,21 @@ async function insertLinkCard() {
   await insertLinkCardFromUrl(url.trim());
 }
 
-/** 기존 링크 카드에 원본 URL 줄이 없으면 추가 */
-function ensureLinkCardUrlLines(wysiwyg) {
+/** 링크 카드 위 원본 URL 텍스트 줄 제거 (카드·OG만 남김) */
+function stripLinkCardUrlLines(wysiwyg) {
   if (!wysiwyg) return;
-  const cards = [
-    ...wysiwyg.querySelectorAll('table.link-card, a.link-card'),
-  ];
-  for (const card of cards) {
-    const block =
-      card.closest('.link-card-block') ||
-      (card.parentElement?.tagName === 'P' ? card.parentElement : null);
-    if (!block) continue;
-    const prev = block.previousElementSibling;
-    if (prev?.classList?.contains('link-card-url-line')) continue;
-    const url =
-      card.getAttribute('data-url') ||
-      card.getAttribute('href') ||
-      card.querySelector?.('a[href]')?.getAttribute('href') ||
-      '';
-    if (!url) continue;
-    const urlLine = document.createElement('p');
-    urlLine.className = 'link-card-url-line';
-    urlLine.setAttribute('data-lc-part', 'url');
-    urlLine.style.textAlign = block.getAttribute('data-align') || 'center';
-    const a = document.createElement('a');
-    a.className = 'link-card-url';
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.textContent = url;
-    urlLine.appendChild(a);
-    block.parentNode.insertBefore(urlLine, block);
-    if (!block.classList.contains('link-card-block')) {
-      block.classList.add('link-card-block');
+  wysiwyg.querySelectorAll('.link-card-url-line, [data-lc-part="url"]').forEach((el) => {
+    try {
+      el.remove();
+    } catch (_) {
+      /* ignore */
     }
-    if (!block.getAttribute('data-align')) {
-      block.setAttribute('data-align', 'center');
-      block.style.textAlign = 'center';
-    }
-  }
+  });
+}
+
+/** @deprecated URL 줄은 더 이상 추가하지 않음 */
+function ensureLinkCardUrlLines(wysiwyg) {
+  stripLinkCardUrlLines(wysiwyg);
 }
 
 /** 본문에 있는 일반 링크·URL 텍스트를 썸네일 카드로 변환 */
@@ -2655,7 +2628,6 @@ async function convertPlainLinksInEditor() {
         },
         { align }
       );
-      const urlLine = wrap.querySelector('.link-card-url-line');
       const block =
         wrap.querySelector('.link-card-block') ||
         wrap.querySelector('table.link-card') ||
@@ -2666,7 +2638,6 @@ async function convertPlainLinksInEditor() {
       }
 
       const frag = document.createDocumentFragment();
-      if (urlLine) frag.appendChild(urlLine);
       frag.appendChild(block);
 
       try {
@@ -2685,20 +2656,11 @@ async function convertPlainLinksInEditor() {
         const data = await fetchLinkPreview(url);
         const done = document.createElement('div');
         done.innerHTML = buildLinkCardHtml(data, { align });
-        const finalUrlLine = done.querySelector('.link-card-url-line');
         const finalBlock =
           done.querySelector('.link-card-block') ||
           done.querySelector('table.link-card') ||
           done.querySelector('a.link-card');
         if (finalBlock && block.isConnected) {
-          if (finalUrlLine) {
-            const prev = block.previousElementSibling;
-            if (prev?.classList?.contains('link-card-url-line')) {
-              prev.replaceWith(finalUrlLine);
-            } else {
-              block.parentNode.insertBefore(finalUrlLine, block);
-            }
-          }
           block.replaceWith(finalBlock);
         }
         suneditor.core?.history?.push?.(true);
@@ -2709,6 +2671,7 @@ async function convertPlainLinksInEditor() {
   } finally {
     delete wysiwyg.dataset.linkConverting;
     scrubNaverSourceInEditor();
+    stripLinkCardUrlLines(wysiwyg);
     hardenLinkCardsInEditor();
   }
 }

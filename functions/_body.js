@@ -102,11 +102,11 @@ function buildLinkCardBlockHtml({ url, title, description, image, domain, align 
   );
 }
 
-/** 저장된 빈 .link-card-block 을 URL 줄 기준으로 다시 채움 */
+/** 저장된 빈 .link-card-block 을 URL 줄 기준으로 다시 채움 (URL 줄은 제거) */
 export function rebuildEmptyLinkCards(html) {
   if (!html || !/link-card-block/i.test(html)) return html || '';
 
-  return html.replace(
+  let out = html.replace(
     /(<p\b[^>]*\bclass="[^"]*\blink-card-url-line\b[^"]*"[^>]*>[\s\S]*?<a\b[^>]*\bhref="([^"]+)"[^>]*>[\s\S]*?<\/p>)\s*<(?:p|div)\b([^>]*\bclass="[^"]*\blink-card-block\b[^"]*"[^>]*)>\s*<\/(?:p|div)>/gi,
     (full, urlLine, href, openAttrs) => {
       const { url, hostname, domain } = parseUrlMeta(href);
@@ -119,9 +119,16 @@ export function rebuildEmptyLinkCards(html) {
         domain,
         align,
       });
-      return `${urlLine}${card}`;
+      // URL 주소 줄은 버리고 카드만
+      return card;
     }
   );
+  // 남아 있는 URL 주소 줄 제거
+  out = out.replace(
+    /<p\b[^>]*\bclass="[^"]*\blink-card-url-line\b[^"]*"[^>]*>[\s\S]*?<\/p>/gi,
+    ''
+  );
+  return out;
 }
 
 function pickMeta(html, prop) {
