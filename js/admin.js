@@ -654,6 +654,28 @@ function ensureEditor() {
       }
     },
     onPaste: function (e, cleanData, _maxCharCount, core) {
+      // 중첩 paste(캡처 훅 + SunEditor 기본 삽입)로 본문이 2~3회 중복되는 것 방지
+      if (editorPasteLock) {
+        try {
+          e.preventDefault();
+          e.stopPropagation?.();
+          e.stopImmediatePropagation?.();
+        } catch (_) {
+          /* ignore */
+        }
+        return false;
+      }
+
+      const stopPasteEvent = () => {
+        try {
+          e.preventDefault();
+          e.stopPropagation?.();
+          e.stopImmediatePropagation?.();
+        } catch (_) {
+          /* ignore */
+        }
+      };
+
       const items = e?.clipboardData?.items;
       if (items) {
         const files = [];
@@ -663,9 +685,23 @@ function ensureEditor() {
             if (f) files.push(f);
           }
         }
-        if (files.length) {
-          e.preventDefault();
-          insertUploadedImages(files, core);
+        // 이미지 파일만 있고 HTML 본문이 거의 없을 때만 파일 업로드 경로 사용
+        // (네이버 글 복붙 시 clipboard에 썸네일 file이 섞여 본문이 누락·중복되는 경우 방지)
+        const htmlProbe = e?.clipboardData?.getData('text/html') || '';
+        const plainProbe =
+          e?.clipboardData?.getData('text/plain') ||
+          e?.clipboardData?.getData('text') ||
+          '';
+        const hasRichHtml =
+          htmlProbe.length > 80 ||
+          (typeof cleanData === 'string' && cleanData.length > 80) ||
+          plainProbe.replace(/\s+/g, '').length > 40;
+        if (files.length && !hasRichHtml) {
+          stopPasteEvent();
+          editorPasteLock = true;
+          Promise.resolve(insertUploadedImages(files, core)).finally(() => {
+            editorPasteLock = false;
+          });
           return false;
         }
       }
@@ -685,23 +721,21 @@ function ensureEditor() {
         extractSingleUrl(fromClean) ||
         extractSingleUrl(htmlRaw);
       if (urlOnly) {
-        try {
-          e.preventDefault();
-          e.stopPropagation?.();
-        } catch (_) {
-          /* ignore */
-        }
-        // paste 이벤트 직후 삽입 (SunEditor 내부 처리와 충돌 방지)
+        stopPasteEvent();
+        editorPasteLock = true;
         setTimeout(() => {
-          insertLinkCardFromUrl(urlOnly, { silent: true });
+          insertLinkCardFromUrl(urlOnly, { silent: true }).finally(() => {
+            editorPasteLock = false;
+          });
         }, 0);
         return false;
       }
 
       if (typeof cleanData === 'string' && /data:image\//i.test(cleanData)) {
-        e.preventDefault();
+        stopPasteEvent();
+        editorPasteLock = true;
         showLoading('붙여넣은 이미지를 R2에 올리는 중…', '이미지 처리');
-        replaceBase64ImagesInHtml(cleanData)
+        replaceBase64ImagesInHtml(sanitizePastedHtml(cleanData))
           .then((html) => {
             closeUiModal(true);
             core.functions.insertHTML(html, true, false);
@@ -714,9 +748,36 @@ function ensureEditor() {
               message: err.message || '붙여넣기 이미지 업로드에 실패했습니다.',
               variant: 'error',
             });
+          })
+          .finally(() => {
+            editorPasteLock = false;
           });
         return false;
       }
+
+      // 네이버 등 HTML 붙여넣기: 브라우저/SunEditor 기본 삽입을 막고 1회만 삽입
+      if (htmlRaw && /<[a-z][\s\S]*>/i.test(htmlRaw)) {
+        stopPasteEvent();
+        editorPasteLock = true;
+        const source =
+          typeof cleanData === 'string' && cleanData.trim()
+            ? cleanData
+            : htmlRaw;
+        const html = sanitizePastedHtml(source);
+        try {
+          if (core?.functions?.insertHTML) core.functions.insertHTML(html, true, false);
+          else if (suneditor) suneditor.insertHTML(html);
+        } catch (err) {
+          console.warn('paste insertHTML failed', err);
+        }
+        setTimeout(() => {
+          ensureEditableGapAfterImages();
+          debounceConvertLinks();
+          editorPasteLock = false;
+        }, 50);
+        return false;
+      }
+
       return undefined;
     },
     onDrop: function (e, cleanData, _maxCharCount, core) {
@@ -758,32 +819,6 @@ function ensureEditor() {
       updateSeoPreview();
     },
   });
-
-  // SunEditor onPaste가 놓치는 경우 대비: 편집 영역 네이티브 paste 훅
-  try {
-    const wysiwyg = suneditor.core?.context?.element?.wysiwyg;
-    if (wysiwyg && !wysiwyg.dataset.linkPasteBound) {
-      wysiwyg.dataset.linkPasteBound = '1';
-      wysiwyg.addEventListener(
-        'paste',
-        (e) => {
-          const plain =
-            e.clipboardData?.getData('text/plain') ||
-            e.clipboardData?.getData('text') ||
-            '';
-          const html = e.clipboardData?.getData('text/html') || '';
-          const urlOnly = extractSingleUrl(plain) || extractSingleUrl(html);
-          if (!urlOnly) return;
-          e.preventDefault();
-          e.stopPropagation();
-          insertLinkCardFromUrl(urlOnly, { silent: true });
-        },
-        true
-      );
-    }
-  } catch (_) {
-    /* ignore */
-  }
 }
 
 let gapTimer = null;
@@ -1811,6 +1846,9 @@ async function addAdCommentQuick() {
   }
 }
 
+/** 붙여넣기 중복 삽입 방지 락 */
+let editorPasteLock = false;
+
 /** 붙여넣기/본문 텍스트가 단일 URL인지 판별 */
 function extractSingleUrl(text) {
   const stripped = String(text || '')
@@ -1822,6 +1860,99 @@ function extractSingleUrl(text) {
   // https://www.naver.com 또는 https://www.naver.com/
   if (!/^https?:\/\/[^\s<>"']+$/i.test(compact)) return '';
   return normalizeExternalUrl(compact);
+}
+
+/** 네이버 등 외부 HTML 붙여넣기 정리 */
+function sanitizePastedHtml(html) {
+  if (!html || typeof html !== 'string') return '';
+  try {
+    const doc = new DOMParser().parseFromString(
+      `<div id="__paste_root__">${html}</div>`,
+      'text/html'
+    );
+    const root = doc.getElementById('__paste_root__');
+    if (!root) return html;
+    root.querySelectorAll('script, style, noscript, meta, link').forEach((el) => el.remove());
+    return collapseRepeatedPasteHtml(root.innerHTML);
+  } catch {
+    return html;
+  }
+}
+
+/**
+ * 같은 본문이 2~3번 이어 붙여진 경우 1회분만 남김
+ * (네이버 복붙 + 에디터 핸들러 중첩 시 발생)
+ */
+function collapseRepeatedPasteHtml(html) {
+  if (!html || typeof html !== 'string') return html;
+  try {
+    const doc = new DOMParser().parseFromString(
+      `<div id="__dedupe_root__">${html}</div>`,
+      'text/html'
+    );
+    const root = doc.getElementById('__dedupe_root__');
+    if (!root) return html;
+    const kids = [...root.children];
+    if (kids.length < 4) return html;
+
+    const fingerprint = (el) => {
+      const t = (el.textContent || '').replace(/[\u200b\u200c\u200d\ufeff\s]+/g, ' ').trim();
+      const img = el.querySelector?.('img[src]')?.getAttribute('src') || '';
+      return `${el.tagName}|${img}|${t.slice(0, 80)}`;
+    };
+
+    for (const n of [3, 2]) {
+      if (kids.length % n !== 0) continue;
+      const size = kids.length / n;
+      if (size < 2) continue;
+      const first = kids.slice(0, size).map(fingerprint).join('||');
+      if (!first.replace(/\|/g, '').trim()) continue;
+      let same = true;
+      for (let i = 1; i < n; i++) {
+        const chunk = kids.slice(i * size, (i + 1) * size).map(fingerprint).join('||');
+        if (chunk !== first) {
+          same = false;
+          break;
+        }
+      }
+      if (same) {
+        kids.slice(size).forEach((el) => el.remove());
+        return root.innerHTML;
+      }
+    }
+
+    // 자식 수가 안 맞아도, 본문 텍스트가 거의 동일하게 2~3회 반복이면
+    // 두 번째 반복 시작점이 첫 블록과 같은 지점에서 뒤를 제거
+    const plain = (root.textContent || '')
+      .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (plain.length >= 240 && kids.length >= 4) {
+      for (const n of [3, 2]) {
+        const partLen = Math.floor(plain.length / n);
+        if (partLen < 120) continue;
+        const probe = plain.slice(0, Math.min(100, partLen));
+        if (!/[가-힣A-Za-z0-9]/.test(probe)) continue;
+        let ok = true;
+        for (let i = 1; i < n; i++) {
+          const other = plain.slice(i * partLen, i * partLen + probe.length);
+          if (other !== probe) {
+            ok = false;
+            break;
+          }
+        }
+        if (!ok) continue;
+        const cutAt = Math.floor(kids.length / n);
+        if (cutAt < 2) continue;
+        if (fingerprint(kids[0]) !== fingerprint(kids[cutAt])) continue;
+        kids.slice(cutAt).forEach((el) => el.remove());
+        return root.innerHTML;
+      }
+    }
+    return html;
+  } catch {
+    return html;
+  }
 }
 
 function buildLinkCardHtml({ url, title, description, image, domain }, opts = {}) {
@@ -2151,11 +2282,13 @@ function insertHtmlIntoEditor(html) {
     return !!ta;
   }
   const wysiwyg = suneditor.core?.context?.element?.wysiwyg;
-  const before = wysiwyg
-    ? wysiwyg.querySelectorAll('table.link-card, a.link-card').length
-    : 0;
+  const marker = `ins-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const marked = String(html || '').replace(
+    /<(table|div|p|a)(\s)/i,
+    `<$1 data-editor-ins="${marker}"$2`
+  );
   try {
-    suneditor.insertHTML(html, true, true);
+    suneditor.insertHTML(marked, true, true);
   } catch (e) {
     console.warn('insertHTML failed, fallback append', e);
     try {
@@ -2166,14 +2299,14 @@ function insertHtmlIntoEditor(html) {
       return false;
     }
   }
-  // insertHTML이 카드를 넣지 못했으면 강제 append
+  // insertHTML이 실제로 들어갔는지 마커로 확인 (중복 append 방지)
   try {
-    const after = wysiwyg
-      ? wysiwyg.querySelectorAll('table.link-card, a.link-card').length
-      : 0;
-    if (after <= before) {
+    const inserted = wysiwyg?.querySelector?.(`[data-editor-ins="${marker}"]`);
+    if (!inserted) {
       const cur = suneditor.getContents() || '';
       suneditor.setContents(cur + html);
+    } else {
+      inserted.removeAttribute('data-editor-ins');
     }
   } catch (_) {
     /* ignore */
@@ -2795,7 +2928,9 @@ async function savePost() {
   try {
     // 저장 직전 일반 링크 → 썸네일 카드 변환 완료 대기
     await convertPlainLinksInEditor();
-    let bodyHtml = normalizeBodyHtml(prepareLinkCardsHtml(getEditorHtml()));
+    let bodyHtml = normalizeBodyHtml(
+      prepareLinkCardsHtml(collapseRepeatedPasteHtml(getEditorHtml()))
+    );
     if (/data:image\//i.test(bodyHtml)) {
       showLoading('본문 base64 이미지를 R2로 올리는 중…', '이미지 업로드');
       bodyHtml = normalizeBodyHtml(
