@@ -70,12 +70,15 @@ function absolutize(base, url) {
 function normalizeTargetUrl(raw) {
   let s = String(raw || '')
     .trim()
-    .replace(/[\u200b\u200c\u200d\ufeff]/g, '');
+    .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#0*38;/g, '&');
   // admin 상대경로로 깨진 경우: https://host/admin/https://real.com/...
   const nested = s.match(/https?:\/\/[^\s]*?(https?:\/\/[^\s]+)/i);
   if (nested) s = nested[1];
   const lastHttps = Math.max(s.lastIndexOf('https://'), s.lastIndexOf('http://'));
   if (lastHttps > 0) s = s.slice(lastHttps);
+  s = s.replace(/[),.;:!?…]+$/u, '');
   return s;
 }
 
@@ -175,13 +178,15 @@ export async function onRequestGet(context) {
     );
     if (!image) image = faviconFor(finalParsed.hostname);
 
+  // 반환 URL은 요청한 원본(utm 유지). finalUrl은 리다이렉트 추적용으로만 사용
     return json({
       ok: true,
-      url: finalUrl,
+      url: parsed.toString(),
       title: String(title).slice(0, 200),
       description: String(description).slice(0, 300),
       image,
       domain: finalParsed.hostname.replace(/^www\./, ''),
+      finalUrl,
     });
   } catch (e) {
     console.error('link-preview', e);

@@ -83,6 +83,26 @@ let passed = 0;
 }
 
 {
+  // 네이버 OG 모듈에 utm 제품 URL이 있으면 삭제하지 말고 <a>로 보존
+  const utm =
+    'https://repurely.com/surl/P/100?utm_source=k&utm_medium=k&utm_campaign=k_i_b_o_l_0622_1';
+  const html = `
+<div class="se-component se-oglink">
+  <div class="se-module se-module-oglink">
+    <a href="${utm.replace(/&/g, '&amp;')}" class="se-oglink-info">제품 보기</a>
+  </div>
+</div>
+`;
+  const out = api.sanitizePastedHtml(html);
+  assert.ok(!/se-oglink|se-module-oglink/i.test(out), 'og module removed');
+  assert.ok(/repurely\.com\/surl\/P\/100/i.test(out), 'product url kept: ' + out);
+  assert.ok(/utm_source=k/i.test(out.replace(/&amp;/g, '&')), 'utm kept: ' + out);
+  assert.ok(/<a\b[^>]*href=/i.test(out), 'anchor present');
+  passed++;
+  console.log('OK utm product oglink salvaged');
+}
+
+{
   assert.ok(api.isNaverBlogUrl('https://blog.naver.com/a/1'));
   assert.ok(!api.isNaverBlogUrl('https://repurely.com/surl/P/100'));
   passed++;

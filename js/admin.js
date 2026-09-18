@@ -1959,17 +1959,54 @@ function getNaverPasteApi() {
   return (typeof globalThis !== 'undefined' && globalThis.NaverPasteSanitize) || {};
 }
 
-/** 붙여넣기/본문 텍스트가 단일 URL인지 판별 */
+/** 붙여넣기/본문 텍스트가 단일 URL인지 판별 (utm 쿼리·&amp; 포함) */
 function extractSingleUrl(text) {
   const stripped = String(text || '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#0*38;/g, '&')
     .trim();
   if (!stripped) return '';
   const compact = stripped.replace(/\s+/g, '');
-  // https://www.naver.com 또는 https://www.naver.com/
-  if (!/^https?:\/\/[^\s<>"']+$/i.test(compact)) return '';
-  return normalizeExternalUrl(compact);
+  // 전체가 URL
+  if (/^https?:\/\/[^\s<>"']+$/i.test(compact)) {
+    return normalizeExternalUrl(compact);
+  }
+  // 본문에 URL이 딱 하나만 있으면 그것으로
+  const found = stripped.match(/https?:\/\/[^\s<>"']+/gi) || [];
+  const unique = [
+    ...new Set(found.map((u) => normalizeExternalUrl(u)).filter(Boolean)),
+  ];
+  if (unique.length === 1) return unique[0];
+  return '';
+}
+
+/** admin 페이지에서 상대경로로 깨진 URL 복구 + utm 쿼리 보존 */
+function normalizeExternalUrl(raw) {
+  let s = String(raw || '')
+    .trim()
+    .replace(/[\u200b\u200c\u200d\ufeff]/g, '');
+  if (!s) return '';
+  // HTML 엔티티 (&amp;utm_…) 복원 — 안 하면 쿼리가 깨져 OG/카드 실패
+  s = decodeHtmlEntities(s);
+  const nested = s.match(/https?:\/\/[^\s]*?(https?:\/\/[^\s]+)/i);
+  if (nested) s = nested[1];
+  const lastHttps = Math.max(s.lastIndexOf('https://'), s.lastIndexOf('http://'));
+  if (lastHttps > 0) s = s.slice(lastHttps);
+  // 끝 구두점·닫는괄호
+  s = s.replace(/[),.;:!?…》」』】]+$/u, '');
+  try {
+    const u = new URL(s);
+    if (!/^https?:$/i.test(u.protocol)) return '';
+    return u.toString();
+  } catch {
+    try {
+      return new URL(`https://${s}`).toString();
+    } catch {
+      return '';
+    }
+  }
 }
 
 /** 네이버 등 외부 HTML 붙여넣기 정리 */
@@ -2392,29 +2429,6 @@ function stripCitationSiblingsNearLinkCards(root) {
   }
 }
 
-/** admin 페이지에서 상대경로로 깨진 URL 복구 */
-function normalizeExternalUrl(raw) {
-  let s = String(raw || '')
-    .trim()
-    .replace(/[\u200b\u200c\u200d\ufeff]/g, '');
-  if (!s) return '';
-  const nested = s.match(/https?:\/\/[^\s]*?(https?:\/\/[^\s]+)/i);
-  if (nested) s = nested[1];
-  const lastHttps = Math.max(s.lastIndexOf('https://'), s.lastIndexOf('http://'));
-  if (lastHttps > 0) s = s.slice(lastHttps);
-  try {
-    const u = new URL(s);
-    if (!/^https?:$/i.test(u.protocol)) return '';
-    return u.toString();
-  } catch {
-    try {
-      return new URL(`https://${s}`).toString();
-    } catch {
-      return '';
-    }
-  }
-}
-
 function linkCardPlaceholder(url) {
   let domain = '';
   try {
@@ -2432,16 +2446,50 @@ function linkCardPlaceholder(url) {
 }
 
 async function fetchLinkPreview(url) {
-  const data = await adminFetch(
-    `/api/link-preview?url=${encodeURIComponent(url)}`
-  );
+  const original = normalizeExternalUrl(url) || url;
+  const tryFetch = async (target) =>
+    adminFetch(`/api/link-preview?url=${encodeURIComponent(target)}`);
+
+  let data;
+  try {
+    data = await tryFetch(original);
+  } catch (e) {
+    // utm 등 트래킹 파라미터가 붙은 채 OG 차단되면 경로만으로 재시도
+    const bare = stripTrackingParams(original);
+    if (bare && bare !== original) {
+      data = await tryFetch(bare);
+    } else {
+      throw e;
+    }
+  }
   return {
-    url: data.url || url,
+    // 클릭 URL은 원본(utm 유지), OG 메타만 사용
+    url: original,
     title: data.title || '',
     description: data.description || '',
     image: data.image || '',
     domain: data.domain || '',
   };
+}
+
+/** utm_/fbclid 등 트래킹 파라미터만 제거 (OG 폴백용) */
+function stripTrackingParams(raw) {
+  try {
+    const u = new URL(String(raw || ''));
+    const drop = [];
+    for (const key of [...u.searchParams.keys()]) {
+      if (
+        /^utm_/i.test(key) ||
+        /^(fbclid|gclid|gbraid|wbraid|mc_[a-z]+|ref|referrer)$/i.test(key)
+      ) {
+        drop.push(key);
+      }
+    }
+    drop.forEach((k) => u.searchParams.delete(k));
+    return u.toString();
+  } catch {
+    return String(raw || '');
+  }
 }
 
 function insertHtmlIntoEditor(html) {

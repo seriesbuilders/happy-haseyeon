@@ -104,18 +104,102 @@
     }
   }
 
+  /** 텍스트/속성에서 http(s) URL 후보 추출 (&amp; 디코드 포함) */
+  function decodeAmp(s) {
+    return String(s || '')
+      .replace(/&amp;/gi, '&')
+      .replace(/&#0*38;/g, '&')
+      .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+      .trim();
+  }
+
+  function tryParseHttpUrl(raw) {
+    let s = decodeAmp(raw);
+    if (!s) return '';
+    // 끝 구두점 제거
+    s = s.replace(/[),.;:!?…》」』】]+$/u, '');
+    try {
+      const u = new URL(s);
+      if (!/^https?:$/i.test(u.protocol)) return '';
+      return u.toString();
+    } catch {
+      try {
+        const u = new URL(`https://${s}`);
+        return u.toString();
+      } catch {
+        return '';
+      }
+    }
+  }
+
+  /** OG/임베드 모듈에서 네이버가 아닌 외부 제품 URL 꺼내기 */
+  function pickExternalProductUrl(el) {
+    if (!el) return '';
+    const candidates = [];
+    for (const a of [...(el.querySelectorAll?.('a[href]') || [])]) {
+      candidates.push(a.getAttribute('href') || '');
+    }
+    for (const attr of ['data-link', 'data-url', 'data-href', 'data-og', 'href']) {
+      const v = el.getAttribute?.(attr);
+      if (v) candidates.push(v);
+    }
+    const html = String(el.innerHTML || '');
+    const fromHtml = html.match(/https?:\/\/[^"'\\\s<>]+/gi) || [];
+    candidates.push(...fromHtml);
+    const text = cleanText(el.textContent);
+    const fromText = text.match(/https?:\/\/\S+/gi) || [];
+    candidates.push(...fromText);
+
+    for (const raw of candidates) {
+      const url = tryParseHttpUrl(raw);
+      if (!url) continue;
+      if (isNaverBlogUrl(url)) continue;
+      return url;
+    }
+    return '';
+  }
+
   /** 네이버 블로그 URL / OG임베드 / 링크카드 제거 */
   function stripNaverBlogEmbeds(root) {
     if (!root) return;
 
     // 1) 스마트에디터 OG 링크 모듈
+    //    - blog.naver.com OG → 삭제
+    //    - 제품/외부 URL OG(utm 포함) → <a>로 남겨 이후 링크카드 승격
     for (const el of [
       ...root.querySelectorAll(
         '.se-oglink, .se-module-oglink, [class*="se-oglink"], [class*="oglink"]'
       ),
     ]) {
+      if (!el.isConnected) continue;
       const wrap =
         el.closest?.('.se-component, .se-section, .se-module, figure, p, div') || el;
+      const productUrl =
+        pickExternalProductUrl(el) ||
+        (wrap !== el ? pickExternalProductUrl(wrap) : '');
+      if (productUrl) {
+        const doc = el.ownerDocument || (typeof document !== 'undefined' ? document : null);
+        if (doc) {
+          const p = doc.createElement('p');
+          const a = doc.createElement('a');
+          a.setAttribute('href', productUrl);
+          a.textContent = productUrl;
+          a.setAttribute('target', '_blank');
+          a.setAttribute('rel', 'noopener noreferrer');
+          p.appendChild(a);
+          try {
+            (wrap && wrap !== root ? wrap : el).replaceWith(p);
+          } catch {
+            removeEl(wrap && wrap !== root ? wrap : el);
+            try {
+              root.appendChild(p);
+            } catch {
+              /* ignore */
+            }
+          }
+          continue;
+        }
+      }
       if (wrap && wrap !== root) removeEl(wrap);
       else removeEl(el);
     }
