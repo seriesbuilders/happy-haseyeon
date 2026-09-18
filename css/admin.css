@@ -2172,6 +2172,16 @@ img.cm-avatar {
   gap: 12px;
   margin-bottom: 8px;
   flex-wrap: wrap;
+  /* 본문 스크롤 시 링크/문단 버튼이 따라오도록 */
+  position: sticky;
+  top: 0;
+  z-index: 75;
+  padding: 10px 8px;
+  margin-left: -8px;
+  margin-right: -8px;
+  background: var(--admin-bg);
+  border-bottom: 1px solid var(--admin-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
 .editor-label-row label {
@@ -2182,6 +2192,12 @@ img.cm-avatar {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+[data-admin-theme="dark"] .editor-label-row {
+  background: var(--admin-bg);
+  border-bottom-color: var(--admin-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 .panel-edit .sun-editor {
