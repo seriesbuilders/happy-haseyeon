@@ -1123,8 +1123,29 @@ function normalizeBodyHtml(html) {
 }
 
 function getEditorHtml() {
-  if (suneditor) return suneditor.getContents();
-  return document.getElementById('body').value || '';
+  if (!suneditor) return document.getElementById('body').value || '';
+  // SunEditor getContents()가 table.link-card 를 비우는 경우가 있어
+  // 화면(wysiwyg)에 카드가 더 많으면 DOM HTML을 우선 사용
+  try {
+    const fromApi = suneditor.getContents() || '';
+    const wysiwyg = suneditor.core?.context?.element?.wysiwyg;
+    const fromDom = wysiwyg ? wysiwyg.innerHTML || '' : '';
+    if (!fromDom) return fromApi;
+    const count = (html) =>
+      (String(html).match(/<table\b[^>]*\blink-card\b/gi) || []).length;
+    if (count(fromDom) > count(fromApi)) return fromDom;
+    // 카드는 같은데 API가 본문을 과도하게 줄인 경우도 DOM 우선
+    if (
+      count(fromDom) > 0 &&
+      fromDom.length > fromApi.length + 80 &&
+      count(fromApi) === 0
+    ) {
+      return fromDom;
+    }
+    return fromApi || fromDom;
+  } catch {
+    return suneditor.getContents() || '';
+  }
 }
 
 function setEditorHtml(html) {
@@ -2037,10 +2058,11 @@ function buildLinkCardHtml({ url, title, description, image, domain }, opts = {}
     `</tbody></table>`;
 
   // link-card-block 은 div 필수: <p><table> 은 무효 HTML이라 저장 시 카드가 비워짐
+  // data-* 를 래퍼에도 넣어 테이블이 비워져도 공개 페이지에서 복구 가능
   // 제품/외부 링크: URL 주소 텍스트는 노출하지 않고 OG 카드만
   return (
     `<p><br></p>` +
-    `<div class="link-card-block" data-lc-part="card" data-align="${align}" style="text-align:${align};margin:0 0 16px;">` +
+    `<div class="link-card-block" data-lc="1" data-lc-part="card" data-align="${align}" data-url="${safeUrl}" data-title="${safeTitle}" data-desc="${safeDesc}" data-image="${safeImage}" data-domain="${safeDomain}" style="text-align:${align};margin:0 0 16px;">` +
     table +
     `</div>` +
     `<p><br></p>`
@@ -2075,6 +2097,12 @@ function hardenLinkCardsInEditor() {
     if (block) {
       block.style.textAlign = align;
       block.setAttribute('data-align', align);
+      block.setAttribute('data-lc', '1');
+      block.setAttribute('data-lc-part', 'card');
+      for (const key of ['url', 'title', 'desc', 'image', 'domain']) {
+        const v = table.getAttribute(`data-${key}`);
+        if (v) block.setAttribute(`data-${key}`, v);
+      }
     }
     // URL 주소 줄은 제거 (카드·OG만 유지)
     const prevUrl = block?.previousElementSibling;
@@ -2124,39 +2152,39 @@ function prepareLinkCardsHtml(html) {
     const root = doc.getElementById('__lc_root__');
     if (!root) return html;
 
-    // 빈 link-card-block (p/div) → 직전 URL 줄로 카드 재생성
+    // 빈 link-card-block → 래퍼 data-url 또는 직전 URL 줄로 카드 재생성
     for (const empty of [...root.querySelectorAll('.link-card-block')]) {
       if (empty.querySelector('table.link-card, a.link-card')) continue;
-      if ((empty.textContent || '').trim()) continue;
       const prev = empty.previousElementSibling;
       const href =
+        empty.getAttribute('data-url') ||
         (prev?.classList?.contains('link-card-url-line') &&
           prev.querySelector('a[href]')?.getAttribute('href')) ||
         '';
       if (!href) continue;
-      let domain = '';
+      let domain =
+        decodeHtmlEntities(empty.getAttribute('data-domain') || '') || '';
       try {
-        domain = new URL(href).hostname.replace(/^www\./, '');
+        if (!domain) domain = new URL(href).hostname.replace(/^www\./, '');
       } catch {
-        domain = href;
+        domain = domain || href;
       }
       const align =
         (empty.getAttribute('data-align') || 'center').toLowerCase() === 'left'
           ? 'left'
           : 'center';
+      const title =
+        decodeHtmlEntities(empty.getAttribute('data-title') || '') || domain;
+      const description = decodeHtmlEntities(empty.getAttribute('data-desc') || '');
+      const image =
+        decodeHtmlEntities(empty.getAttribute('data-image') || '') ||
+        `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
       const wrap = doc.createElement('div');
       wrap.innerHTML = buildLinkCardHtml(
-        {
-          url: href,
-          title: domain,
-          description: '',
-          image: `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`,
-          domain,
-        },
+        { url: href, title, description, image, domain },
         { align }
       );
       const newBlock = wrap.querySelector('.link-card-block');
-      // 기존 URL 주소 줄은 제거하고 카드만 유지
       if (prev?.classList?.contains('link-card-url-line')) prev.remove();
       if (newBlock) empty.replaceWith(newBlock);
     }
@@ -3010,10 +3038,10 @@ async function savePost() {
   try {
     // 저장 직전 일반 링크 → 썸네일 카드 변환 완료 대기
     await convertPlainLinksInEditor();
+    // 저장 시 sanitizePastedHtml 을 다시 돌리면 [출처] 절단·임베드 정리가
+    // 이미 편집된 본문/제품 카드를 통째로 날릴 수 있음 → 카드 복구만 수행
     let bodyHtml = normalizeBodyHtml(
-      prepareLinkCardsHtml(
-        collapseRepeatedPasteHtml(sanitizePastedHtml(getEditorHtml() || ''))
-      )
+      prepareLinkCardsHtml(getEditorHtml() || '')
     );
     if (/data:image\//i.test(bodyHtml)) {
       showLoading('본문 base64 이미지를 R2로 올리는 중…', '이미지 업로드');

@@ -95,23 +95,24 @@ function buildLinkCardBlockHtml({ url, title, description, image, domain, align 
     `</tbody></table>`;
 
   // <p> 안에 <table>은 무효 → 브라우저/에디터가 비워 버림. 반드시 div 사용
+  // 래퍼에도 data-* 를 두어 테이블이 비워져도 복구 가능
   return (
-    `<div class="link-card-block" data-lc-part="card" data-align="${align}" style="text-align:${align};margin:0 0 16px;">` +
+    `<div class="link-card-block" data-lc="1" data-lc-part="card" data-align="${align}" data-url="${safeUrl}" data-title="${safeTitle}" data-desc="${safeDesc}" data-image="${safeImage}" data-domain="${safeDomain}" style="text-align:${align};margin:0 0 16px;">` +
     table +
     `</div>`
   );
 }
 
-/** 저장된 빈 .link-card-block 을 URL 줄 기준으로 다시 채움 (URL 줄은 제거) */
+/** 저장된 빈 .link-card-block 을 data-url / URL 줄 기준으로 다시 채움 (URL 줄은 제거) */
 export function rebuildEmptyLinkCards(html) {
-  if (!html || !/link-card-block/i.test(html)) return html || '';
+  if (!html || !/link-card/i.test(html)) return html || '';
 
   let out = html.replace(
     /(<p\b[^>]*\bclass="[^"]*\blink-card-url-line\b[^"]*"[^>]*>[\s\S]*?<a\b[^>]*\bhref="([^"]+)"[^>]*>[\s\S]*?<\/p>)\s*<(?:p|div)\b([^>]*\bclass="[^"]*\blink-card-block\b[^"]*"[^>]*)>\s*<\/(?:p|div)>/gi,
     (full, urlLine, href, openAttrs) => {
       const { url, hostname, domain } = parseUrlMeta(href);
       const align = /\bdata-align\s*=\s*["']left["']/i.test(openAttrs || '') ? 'left' : 'center';
-      const card = buildLinkCardBlockHtml({
+      return buildLinkCardBlockHtml({
         url,
         title: domain,
         description: '',
@@ -119,10 +120,36 @@ export function rebuildEmptyLinkCards(html) {
         domain,
         align,
       });
-      // URL 주소 줄은 버리고 카드만
-      return card;
     }
   );
+
+  // 빈 카드 블록: 래퍼 data-url 로 복구 (URL 줄 없는 신규 저장 포맷)
+  out = out.replace(
+    /<(?:p|div)\b([^>]*\bclass="[^"]*\blink-card-block\b[^"]*"[^>]*)>\s*<\/(?:p|div)>/gi,
+    (full, openAttrs) => {
+      const urlM = String(openAttrs || '').match(/\bdata-url\s*=\s*["']([^"']+)["']/i);
+      if (!urlM?.[1]) return full;
+      const href = decodeEntities(urlM[1]);
+      const { url, hostname, domain: hostDomain } = parseUrlMeta(href);
+      const pick = (name) => {
+        const m = String(openAttrs || '').match(
+          new RegExp(`\\bdata-${name}\\s*=\\s*["']([^"']*)["']`, 'i')
+        );
+        return m?.[1] ? decodeEntities(m[1]) : '';
+      };
+      const align = /\bdata-align\s*=\s*["']left["']/i.test(openAttrs || '') ? 'left' : 'center';
+      const domain = pick('domain') || hostDomain;
+      return buildLinkCardBlockHtml({
+        url,
+        title: pick('title') || domain,
+        description: pick('desc') || '',
+        image: pick('image') || faviconFor(hostname),
+        domain,
+        align,
+      });
+    }
+  );
+
   // 남아 있는 URL 주소 줄 제거
   out = out.replace(
     /<p\b[^>]*\bclass="[^"]*\blink-card-url-line\b[^"]*"[^>]*>[\s\S]*?<\/p>/gi,
