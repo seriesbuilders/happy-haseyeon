@@ -47,6 +47,42 @@ function summarizePostPixels(post) {
   };
 }
 
+function buildPostPixelsFromRows(rows) {
+  const map = new Map();
+  for (const row of rows || []) {
+    if (row.scope !== 'post') continue;
+    const id = Number(row.post_id) || 0;
+    if (!id) continue;
+    if (!map.has(id)) {
+      map.set(id, {
+        post_id: id,
+        title: row.post_title || '',
+        slug: '',
+        tags: [],
+      });
+    }
+    const item = map.get(id);
+    if (row.post_title) item.title = row.post_title;
+    item.tags.push({
+      channel: row.channel || '',
+      identifier: row.identifier || '',
+    });
+  }
+  return [...map.values()];
+}
+
+async function loadAllAdPosts(env) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, title, slug, ad_pixels FROM posts
+     WHERE category = ?
+     ORDER BY id DESC
+     LIMIT 1000`
+  )
+    .bind(AD_CATEGORY)
+    .all();
+  return results || [];
+}
+
 export async function onRequestGet(context) {
   const auth = await requireAdmin(context.request, context.env);
   if (!auth.ok) return auth.response;
@@ -64,22 +100,11 @@ export async function onRequestGet(context) {
      LIMIT 500`
   ).all();
 
-  let postPixels = [];
-  try {
-    const { results: posts } = await context.env.DB.prepare(
-      `SELECT id, title, slug, ad_pixels FROM posts
-       WHERE category = ? AND TRIM(COALESCE(ad_pixels,'')) != ''
-       ORDER BY id DESC
-       LIMIT 300`
-    )
-      .bind(AD_CATEGORY)
-      .all();
-    postPixels = (posts || [])
-      .map(summarizePostPixels)
-      .filter((row) => row.tags.length > 0);
-  } catch (e) {
-    console.error('post pixels summary', e);
-  }
+  const items = results || [];
+  const syncLogs = items.filter(
+    (r) => r.scope === 'note' && r.channel === '동기화'
+  );
+  const postPixels = buildPostPixelsFromRows(items);
 
   return json({
     common: {
@@ -88,11 +113,13 @@ export async function onRequestGet(context) {
       target: '광고 블로그 랜딩 전체',
       note: 'Google Ads(AW) 전환 태그와 별도. 모든 광고 랜딩 head/body에 자동 삽입.',
     },
-    items: results || [],
+    items: syncLogs,
     post_pixels: postPixels,
+    synced: postPixels.length > 0,
   });
 }
 
+/** 전체 광고 블로그 스캔 → 글별 픽셀 현황 동기화 */
 export async function onRequestPost(context) {
   const auth = await requireAdmin(context.request, context.env);
   if (!auth.ok) return auth.response;
@@ -104,47 +131,65 @@ export async function onRequestPost(context) {
   }
 
   const body = await context.request.json().catch(() => ({}));
-  const scope = String(body.scope || 'global').trim() || 'global';
-  const channel = String(body.channel || '').trim();
-  const identifier = String(body.identifier || '').trim();
-  const note = String(body.note || '').trim();
-  const post_id = Number(body.post_id) || null;
-  const post_title = String(body.post_title || '').trim();
-
-  if (!channel) {
-    return json(
-      { error: '채널(매체)을 입력하세요. 예: GTM, Google Ads, Meta' },
-      400
-    );
-  }
-  if (!identifier && !note) {
-    return json({ error: 'ID 또는 메모를 입력하세요.' }, 400);
+  if (body.action && body.action !== 'sync') {
+    return json({ error: '지원하지 않는 요청입니다.' }, 400);
   }
 
-  const result = await context.env.DB.prepare(
-    `INSERT INTO pixel_memory (scope, channel, identifier, note, post_id, post_title)
-     VALUES (?, ?, ?, ?, ?, ?)`
+  const posts = await loadAllAdPosts(context.env);
+  await context.env.DB.prepare(
+    `DELETE FROM pixel_memory WHERE scope = 'post'`
+  ).run();
+
+  let tagCount = 0;
+  let postsWithTags = 0;
+  const postPixels = [];
+
+  for (const post of posts) {
+    const summary = summarizePostPixels(post);
+    if (!summary.tags.length) continue;
+    postsWithTags += 1;
+    postPixels.push(summary);
+    for (const tag of summary.tags) {
+      tagCount += 1;
+      await context.env.DB.prepare(
+        `INSERT INTO pixel_memory (scope, channel, identifier, note, post_id, post_title)
+         VALUES ('post', ?, ?, '', ?, ?)`
+      )
+        .bind(tag.channel, tag.identifier, summary.post_id, summary.title)
+        .run();
+    }
+  }
+
+  await context.env.DB.prepare(
+    `INSERT INTO pixel_memory (scope, channel, identifier, note, post_title)
+     VALUES ('note', '동기화', ?, ?, '')`
   )
-    .bind(scope, channel, identifier, note, post_id, post_title)
+    .bind(
+      `광고 ${posts.length}개 스캔`,
+      `글별 태그 ${postsWithTags}개 글 · ${tagCount}건 반영 (공통 GTM ${AD_COMMON_GTM_ID} 별도)`
+    )
     .run();
+
+  const { results: syncLogs } = await context.env.DB.prepare(
+    `SELECT id, scope, channel, identifier, note, post_id, post_title, created_at
+     FROM pixel_memory
+     WHERE scope = 'note' AND channel = '동기화'
+     ORDER BY id DESC
+     LIMIT 100`
+  ).all();
 
   return json({
     ok: true,
-    id: result.meta.last_row_id,
+    scanned: posts.length,
+    posts_with_tags: postsWithTags,
+    tag_count: tagCount,
+    post_pixels: postPixels,
+    items: syncLogs || [],
+    common: {
+      gtm_id: AD_COMMON_GTM_ID,
+      scope: 'global',
+      target: '광고 블로그 랜딩 전체',
+      note: 'Google Ads(AW) 전환 태그와 별도. 모든 광고 랜딩 head/body에 자동 삽입.',
+    },
   });
-}
-
-export async function onRequestDelete(context) {
-  const auth = await requireAdmin(context.request, context.env);
-  if (!auth.ok) return auth.response;
-
-  const url = new URL(context.request.url);
-  const id = Number(url.searchParams.get('id'));
-  if (!id) return json({ error: 'id가 필요합니다.' }, 400);
-
-  await context.env.DB.prepare('DELETE FROM pixel_memory WHERE id = ?')
-    .bind(id)
-    .run();
-
-  return json({ ok: true });
 }

@@ -1397,65 +1397,69 @@ const PIXEL_MEM_SCOPE_LABEL = {
   note: '메모',
 };
 
-async function loadPixelMemory() {
+function renderPixelMemoryData(data) {
   const commonLine = document.getElementById('pixelMemCommonLine');
   const body = document.getElementById('pixelMemoryBody');
   const postsBody = document.getElementById('pixelMemPostsBody');
+
+  if (commonLine && data.common) {
+    commonLine.innerHTML = `<code>${escapeHtml(data.common.gtm_id)}</code> · ${escapeHtml(data.common.target)}<br><span class="form-hint">${escapeHtml(data.common.note || '')}</span>`;
+  }
+
+  if (postsBody) {
+    const posts = data.post_pixels || [];
+    if (!posts.length) {
+      postsBody.innerHTML =
+        '<tr><td colspan="2">동기화 결과가 없습니다. 동기화를 눌러 전체 광고 블로그를 스캔하세요.</td></tr>';
+    } else {
+      postsBody.innerHTML = posts
+        .map((p) => {
+          const tags = (p.tags || [])
+            .map(
+              (t) =>
+                `<span class="pixel-mem-tag"><b>${escapeHtml(t.channel)}</b> ${escapeHtml(t.identifier)}</span>`
+            )
+            .join(' ');
+          return `<tr>
+            <td><button type="button" class="title-link" data-edit-ad="${p.post_id}">${escapeHtml(p.title || '(제목 없음)')}</button></td>
+            <td>${tags || '-'}</td>
+          </tr>`;
+        })
+        .join('');
+    }
+  }
+
+  if (body) {
+    const items = data.items || [];
+    if (!items.length) {
+      body.innerHTML =
+        '<tr><td colspan="3">동기화 기록이 없습니다.</td></tr>';
+    } else {
+      body.innerHTML = items
+        .map(
+          (row) => `<tr>
+            <td>${escapeHtml(row.created_at || '')}</td>
+            <td><code>${escapeHtml(row.identifier || '-')}</code></td>
+            <td>${escapeHtml(row.note || '')}</td>
+          </tr>`
+        )
+        .join('');
+    }
+  }
+}
+
+async function loadPixelMemory() {
   try {
     const data = await adminFetch('/api/pixel-memory');
-    if (commonLine && data.common) {
-      commonLine.innerHTML = `<code>${escapeHtml(data.common.gtm_id)}</code> · ${escapeHtml(data.common.target)}<br><span class="form-hint">${escapeHtml(data.common.note || '')}</span>`;
-    }
-    if (body) {
-      const items = data.items || [];
-      if (!items.length) {
-        body.innerHTML = '<tr><td colspan="6">기록이 없습니다. 아래에서 추가하세요.</td></tr>';
-      } else {
-        body.innerHTML = items
-          .map((row) => {
-            const scope = PIXEL_MEM_SCOPE_LABEL[row.scope] || row.scope || '';
-            const title = row.post_title
-              ? `<div class="form-hint">${escapeHtml(row.post_title)}</div>`
-              : '';
-            return `<tr>
-              <td>${escapeHtml(row.created_at || '')}</td>
-              <td>${escapeHtml(scope)}${title}</td>
-              <td>${escapeHtml(row.channel || '')}</td>
-              <td><code>${escapeHtml(row.identifier || '-')}</code></td>
-              <td>${escapeHtml(row.note || '')}</td>
-              <td><button type="button" class="btn btn-ghost btn-sm" data-pixel-mem-del="${row.id}">삭제</button></td>
-            </tr>`;
-          })
-          .join('');
-      }
-    }
-    if (postsBody) {
-      const posts = data.post_pixels || [];
-      if (!posts.length) {
-        postsBody.innerHTML =
-          '<tr><td colspan="2">글별 픽셀이 저장된 광고 블로그가 없습니다.</td></tr>';
-      } else {
-        postsBody.innerHTML = posts
-          .map((p) => {
-            const tags = (p.tags || [])
-              .map(
-                (t) =>
-                  `<span class="pixel-mem-tag"><b>${escapeHtml(t.channel)}</b> ${escapeHtml(t.identifier)}</span>`
-              )
-              .join(' ');
-            return `<tr>
-              <td><button type="button" class="title-link" data-edit-ad="${p.post_id}">${escapeHtml(p.title || '(제목 없음)')}</button></td>
-              <td>${tags || '-'}</td>
-            </tr>`;
-          })
-          .join('');
-      }
-    }
+    renderPixelMemoryData(data);
   } catch (e) {
     if (e.message === 'unauthorized') return;
+    const commonLine = document.getElementById('pixelMemCommonLine');
+    const body = document.getElementById('pixelMemoryBody');
+    const postsBody = document.getElementById('pixelMemPostsBody');
     if (commonLine) commonLine.textContent = '불러오지 못했습니다.';
     if (body) {
-      body.innerHTML = `<tr><td colspan="6">${escapeHtml(e.message || '오류')}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="3">${escapeHtml(e.message || '오류')}</td></tr>`;
     }
     if (postsBody) {
       postsBody.innerHTML = `<tr><td colspan="2">${escapeHtml(e.message || '오류')}</td></tr>`;
@@ -1463,50 +1467,23 @@ async function loadPixelMemory() {
   }
 }
 
-async function addPixelMemory() {
-  const channel = document.getElementById('pixelMemChannel')?.value.trim() || '';
-  const identifier = document.getElementById('pixelMemId')?.value.trim() || '';
-  const note = document.getElementById('pixelMemNote')?.value.trim() || '';
-  const scope = document.getElementById('pixelMemScope')?.value || 'global';
-  const post_title = document.getElementById('pixelMemPostTitle')?.value.trim() || '';
-  if (!channel) {
-    toast('채널을 입력하세요.', false);
-    return;
-  }
-  if (!identifier && !note) {
-    toast('ID 또는 메모를 입력하세요.', false);
-    return;
-  }
+async function syncPixelMemory() {
+  showLoading('광고 블로그 전체를 스캔하고 있습니다…', '픽셀 동기화');
   try {
-    await adminFetch('/api/pixel-memory', {
+    const data = await adminFetch('/api/pixel-memory', {
       method: 'POST',
-      body: JSON.stringify({ scope, channel, identifier, note, post_title }),
+      body: JSON.stringify({ action: 'sync' }),
     });
-    document.getElementById('pixelMemChannel').value = '';
-    document.getElementById('pixelMemId').value = '';
-    document.getElementById('pixelMemNote').value = '';
-    document.getElementById('pixelMemPostTitle').value = '';
-    toast('픽셀 기록이 저장되었습니다.');
-    await loadPixelMemory();
+    closeUiModal(true);
+    renderPixelMemoryData(data);
+    toast(
+      `동기화 완료 · 스캔 ${data.scanned || 0}개 / 태그 있는 글 ${data.posts_with_tags || 0}개`
+    );
   } catch (e) {
-    if (e.message !== 'unauthorized') toast(e.message || '저장 실패', false);
-  }
-}
-
-async function deletePixelMemory(id) {
-  const ok = await showConfirm({
-    title: '기록 삭제',
-    message: '이 픽셀 메모리 기록을 삭제할까요?',
-    okText: '삭제',
-    cancelText: '취소',
-  });
-  if (!ok) return;
-  try {
-    await adminFetch(`/api/pixel-memory?id=${id}`, { method: 'DELETE' });
-    toast('삭제되었습니다.');
-    await loadPixelMemory();
-  } catch (e) {
-    if (e.message !== 'unauthorized') toast(e.message || '삭제 실패', false);
+    closeUiModal(false);
+    if (e.message !== 'unauthorized') {
+      toast(e.message || '동기화 실패', false);
+    }
   }
 }
 
@@ -4290,13 +4267,9 @@ function bindAdminUI() {
   document.getElementById('btnRefreshPixelMemory')?.addEventListener('click', () =>
     loadPixelMemory()
   );
-  document.getElementById('btnAddPixelMemory')?.addEventListener('click', () =>
-    addPixelMemory()
+  document.getElementById('btnSyncPixelMemory')?.addEventListener('click', () =>
+    syncPixelMemory()
   );
-  document.getElementById('pixelMemoryBody')?.addEventListener('click', (e) => {
-    const del = e.target.closest('[data-pixel-mem-del]');
-    if (del) deletePixelMemory(del.dataset.pixelMemDel);
-  });
   document.getElementById('pixelMemPostsBody')?.addEventListener('click', (e) => {
     const edit = e.target.closest('[data-edit-ad]');
     if (!edit) return;

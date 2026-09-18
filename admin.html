@@ -641,68 +641,13 @@
 
           <div class="toolbar" style="margin-top:16px">
             <button type="button" class="btn btn-ghost" id="btnRefreshPixelMemory">새로고침</button>
+            <button type="button" class="btn btn-primary" id="btnSyncPixelMemory">동기화</button>
           </div>
 
-          <h3 class="pixel-mem-section-title">기록 추가</h3>
-          <div class="pixel-mem-form">
-            <div class="form-row-inline">
-              <div class="form-row">
-                <label for="pixelMemScope">범위</label>
-                <select id="pixelMemScope">
-                  <option value="global">전체(공통)</option>
-                  <option value="post">특정 글</option>
-                  <option value="note">메모</option>
-                </select>
-              </div>
-              <div class="form-row">
-                <label for="pixelMemChannel">채널</label>
-                <input type="text" id="pixelMemChannel" list="pixelMemChannelList" placeholder="예: GTM, Google Ads, Meta" />
-                <datalist id="pixelMemChannelList">
-                  <option value="GTM"></option>
-                  <option value="Google Ads"></option>
-                  <option value="GA4"></option>
-                  <option value="Meta"></option>
-                  <option value="TikTok"></option>
-                  <option value="Kakao"></option>
-                  <option value="Naver"></option>
-                </datalist>
-              </div>
-              <div class="form-row">
-                <label for="pixelMemId">ID / 라벨</label>
-                <input type="text" id="pixelMemId" placeholder="예: GTM-KMVZK8RW / AW-… / 라벨" />
-              </div>
-            </div>
-            <div class="form-row">
-              <label for="pixelMemNote">메모</label>
-              <textarea id="pixelMemNote" rows="2" placeholder="고객 요청, 적용 목적, 담당자 등"></textarea>
-            </div>
-            <div class="form-row">
-              <label for="pixelMemPostTitle">관련 글 제목 (선택)</label>
-              <input type="text" id="pixelMemPostTitle" placeholder="특정 랜딩이면 제목 기록" />
-            </div>
-            <button type="button" class="btn btn-primary" id="btnAddPixelMemory">기록 저장</button>
-          </div>
-
-          <h3 class="pixel-mem-section-title">적용 기록</h3>
-          <div class="table-wrap">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>일시</th>
-                  <th>범위</th>
-                  <th>채널</th>
-                  <th>ID</th>
-                  <th>메모</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="pixelMemoryBody">
-                <tr><td colspan="6">불러오는 중…</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <h3 class="pixel-mem-section-title">글별 픽셀 현황 (현재 저장된 값)</h3>
+          <h3 class="pixel-mem-section-title">글별 픽셀 현황</h3>
+          <p class="form-hint" style="margin:-4px 0 10px">
+            <strong>동기화</strong>를 누르면 광고 블로그 전체를 스캔해 아래에 반영합니다. (공통 GTM은 위 카드 참고)
+          </p>
           <div class="table-wrap">
             <table class="table">
               <thead>
@@ -712,7 +657,23 @@
                 </tr>
               </thead>
               <tbody id="pixelMemPostsBody">
-                <tr><td colspan="2">불러오는 중…</td></tr>
+                <tr><td colspan="2">동기화를 눌러 주세요.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="pixel-mem-section-title">동기화 기록</h3>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>일시</th>
+                  <th>요약</th>
+                  <th>메모</th>
+                </tr>
+              </thead>
+              <tbody id="pixelMemoryBody">
+                <tr><td colspan="3">불러오는 중…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1152,6 +1113,6 @@
   <script src="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/src/lang/ko.js"></script>
   <script src="/js/config.js"></script>
   <script src="/js/naver-paste-sanitize.js?v=20260918-react1"></script>
-  <script src="/js/admin.js?v=20260918-pixelmem"></script>
+  <script src="/js/admin.js?v=20260918-pixelsync"></script>
 </body>
 </html>
