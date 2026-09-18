@@ -778,6 +778,30 @@ function ensureEditor() {
         return false;
       }
 
+      // plain 텍스트에 [출처]가 붙은 경우도 제거 후 삽입
+      if (plainRaw && /\[\s*출처\s*\]|(?:^|\n)\s*출처\s*[:：]/.test(plainRaw)) {
+        stopPasteEvent();
+        editorPasteLock = true;
+        const stripped = stripNaverSourceFromPlain(plainRaw);
+        const html = stripped
+          .split(/\r?\n/)
+          .map((line) => {
+            const safe = escapeHtml(line);
+            return `<p>${safe || '<br>'}</p>`;
+          })
+          .join('');
+        try {
+          if (core?.functions?.insertHTML) core.functions.insertHTML(html, true, false);
+          else if (suneditor) suneditor.insertHTML(html);
+        } catch (err) {
+          console.warn('paste plain insertHTML failed', err);
+        }
+        setTimeout(() => {
+          editorPasteLock = false;
+        }, 50);
+        return false;
+      }
+
       return undefined;
     },
     onDrop: function (e, cleanData, _maxCharCount, core) {
@@ -1873,10 +1897,166 @@ function sanitizePastedHtml(html) {
     const root = doc.getElementById('__paste_root__');
     if (!root) return html;
     root.querySelectorAll('script, style, noscript, meta, link').forEach((el) => el.remove());
+    stripNaverSourceCitation(root);
     return collapseRepeatedPasteHtml(root.innerHTML);
   } catch {
     return html;
   }
+}
+
+/** 네이버 복사 시 자동으로 붙는 [출처] / 원문 미리보기 제거 */
+function stripNaverSourceCitation(root) {
+  if (!root) return;
+
+  const clean = (s) =>
+    String(s || '')
+      .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const isSourceStart = (t) =>
+    /\[\s*출처\s*\]/.test(t) ||
+    /^출처\s*[:：]/.test(t) ||
+    /^출처\s*$/.test(t);
+
+  const blockLooksLikeSource = (el) => {
+    if (!el) return false;
+    const t = clean(el.textContent);
+    if (!t) return false;
+    if (t.length < 320 && isSourceStart(t)) return true;
+    if (t.length < 320 && /\[\s*출처\s*\]/.test(t)) return true;
+    const cls = String(el.className || '');
+    if (/se-oglink|se-module-oglink|oglink/i.test(cls)) return true;
+    if (el.querySelector?.('.se-oglink, .se-module-oglink, [class*="oglink"]')) {
+      // 출처 직후 붙는 원문 OG카드만 제거 대상 — 단독 OG는 아래 trailing에서 처리
+      return false;
+    }
+    return false;
+  };
+
+  const kids = [...root.children];
+  if (kids.length) {
+    let cut = -1;
+    const startAt = kids.length > 6 ? Math.floor(kids.length * 0.3) : 0;
+    for (let i = startAt; i < kids.length; i++) {
+      if (blockLooksLikeSource(kids[i])) {
+        cut = i;
+        break;
+      }
+      for (const p of kids[i].querySelectorAll?.('p, div, li, span, a') || []) {
+        const pt = clean(p.textContent);
+        if (pt.length < 280 && isSourceStart(pt)) {
+          cut = i;
+          break;
+        }
+      }
+      if (cut >= 0) break;
+    }
+    // 앞쪽에만 있으면 본문 중 '[출처]' 언급일 수 있어, 끝에서부터 재탐색
+    if (cut < 0) {
+      for (let i = kids.length - 1; i >= Math.floor(kids.length * 0.4); i--) {
+        if (blockLooksLikeSource(kids[i])) {
+          cut = i;
+          // 연속된 출처 블록 시작까지 앞으로 확장
+          while (cut > 0 && blockLooksLikeSource(kids[cut - 1])) cut -= 1;
+          break;
+        }
+        const t = clean(kids[i].textContent);
+        if (t.length < 280 && /\[\s*출처\s*\]|^출처\s*[:：]/.test(t)) {
+          cut = i;
+          break;
+        }
+      }
+    }
+    if (cut >= 0) {
+      kids.slice(cut).forEach((el) => el.remove());
+    }
+  }
+
+  // 남은 단독 [출처] 문단 제거
+  [...root.querySelectorAll('p, div, li, span')].forEach((el) => {
+    const t = clean(el.textContent);
+    if (t.length < 280 && isSourceStart(t)) {
+      const block =
+        el.closest?.('.se-component, .se-section, .se-module, p, div, li') || el;
+      if (block !== root) block.remove();
+      else el.remove();
+    }
+  });
+
+  // 같은 문단 안에 본문+[출처]가 이어진 경우: 출처부터 문서 끝까지 삭제
+  const textNodes = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  for (const node of textNodes) {
+    if (!node.isConnected) continue;
+    const val = node.nodeValue || '';
+    let cut = val.search(/\[\s*출처\s*\]/);
+    if (cut < 0) {
+      const m = val.match(/출처\s*[:：]/);
+      if (m && m.index != null && m.index > 0) cut = m.index;
+    }
+    if (cut < 0) continue;
+    const fullPlain = clean(root.textContent);
+    const approxPos = fullPlain.indexOf(clean(val.slice(0, Math.min(cut, 40)) || val.slice(0, 20)));
+    if (fullPlain.length > 80 && approxPos >= 0 && approxPos < fullPlain.length * 0.25 && cut < 5) {
+      continue; // 앞부분 출처 언급은 유지
+    }
+    node.nodeValue = val.slice(0, cut);
+    let block = node.parentElement;
+    while (block && block.parentElement && block.parentElement !== root) {
+      block = block.parentElement;
+    }
+    if (block && block.parentElement === root) {
+      let sib = block.nextElementSibling;
+      while (sib) {
+        const next = sib.nextElementSibling;
+        sib.remove();
+        sib = next;
+      }
+    } else if (node.parentElement) {
+      let sib = node.parentElement.nextSibling;
+      while (sib) {
+        const next = sib.nextSibling;
+        if (sib.remove) sib.remove();
+        else sib.parentNode?.removeChild(sib);
+        sib = next;
+      }
+    }
+    break;
+  }
+
+  // 말미에 남은 네이버 OG미리보기 / 원문 URL만 있는 블록 제거
+  while (root.lastElementChild) {
+    const last = root.lastElementChild;
+    const t = clean(last.textContent);
+    const hasOglink =
+      /se-oglink|se-module-oglink|oglink/i.test(String(last.className || '')) ||
+      !!last.querySelector?.('.se-oglink, .se-module-oglink, [class*="oglink"]');
+    const onlyNaverUrl =
+      t.length > 0 &&
+      t.length < 220 &&
+      /^https?:\/\/(m\.)?blog\.naver\.com\//i.test(t) &&
+      !/[가-힣]{8,}/.test(t);
+    const emptyish = !t || /^[\s\u200b\u200c\u200d\ufeff]*$/.test(last.textContent || '');
+    if (hasOglink || onlyNaverUrl || (emptyish && root.children.length > 1)) {
+      last.remove();
+      continue;
+    }
+    break;
+  }
+}
+
+/** plain 텍스트에서 [출처] 이하 제거 */
+function stripNaverSourceFromPlain(text) {
+  const s = String(text || '');
+  if (!s.trim()) return s;
+  const re = /\[\s*출처\s*\]|(?:^|\n)\s*출처\s*[:：]/;
+  const m = s.match(re);
+  if (!m || m.index == null) return s;
+  // 글 앞부분 출처 언급은 유지, 중후반 출처 블록만 절단
+  if (m.index < s.length * 0.25 && s.length > 80) return s;
+  return s.slice(0, m.index).replace(/[\s\u200b\u200c\u200d\ufeff]+$/g, '');
 }
 
 /**
