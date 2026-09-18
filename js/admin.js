@@ -815,9 +815,14 @@ function ensureEditor() {
         }
         setTimeout(() => {
           scrubNaverSourceInEditor();
-          ensureEditableGapAfterImages();
-          debounceConvertLinks();
-          editorPasteLock = false;
+          // 제품 URL 등 외부 링크를 OG 카드로 즉시 승격 (debounce 대기 없이)
+          convertPlainLinksInEditor()
+            .catch(() => {})
+            .finally(() => {
+              ensureEditableGapAfterImages();
+              hardenLinkCardsInEditor();
+              editorPasteLock = false;
+            });
         }, 50);
         return false;
       }
@@ -1976,25 +1981,12 @@ function scrubNaverSourceInEditor() {
     const wysiwyg = suneditor.core?.context?.element?.wysiwyg;
     if (!wysiwyg) return;
     const api = getNaverPasteApi();
+    // innerHTML 전체 재작성은 제품 링크카드를 깨뜨리므로 DOM API만 사용
     if (typeof api.stripNaverSourceCitation === 'function') {
       api.stripNaverSourceCitation(wysiwyg);
     }
     if (typeof api.stripNaverBlogEmbeds === 'function') {
       api.stripNaverBlogEmbeds(wysiwyg);
-    }
-    if (typeof api.stripNaverSourceFromHtmlString === 'function') {
-      const cleaned = api.stripNaverSourceFromHtmlString(wysiwyg.innerHTML);
-      if (cleaned !== wysiwyg.innerHTML) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = cleaned;
-        if (typeof api.stripNaverSourceCitation === 'function') {
-          api.stripNaverSourceCitation(tmp);
-        }
-        if (typeof api.stripNaverBlogEmbeds === 'function') {
-          api.stripNaverBlogEmbeds(tmp);
-        }
-        wysiwyg.innerHTML = tmp.innerHTML;
-      }
     }
   } catch (e) {
     console.warn('scrubNaverSourceInEditor', e);
@@ -2342,11 +2334,29 @@ function insertHtmlIntoEditor(html) {
     return !!ta;
   }
   const wysiwyg = suneditor.core?.context?.element?.wysiwyg;
+  const beforeCards = wysiwyg
+    ? wysiwyg.querySelectorAll('table.link-card, a.link-card, .link-card-block').length
+    : 0;
   const marker = `ins-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const marked = String(html || '').replace(
-    /<(table|div|p|a)(\s)/i,
-    `<$1 data-editor-ins="${marker}"$2`
-  );
+  // 링크카드는 table/div 에 마커를 달아 실제 카드 삽입 여부를 확인한다
+  let marked = String(html || '');
+  if (/class="link-card"|class='link-card'|link-card-block/i.test(marked)) {
+    marked = marked.replace(
+      /<(table|div)(\s[^>]*class="[^"]*link-card)/i,
+      `<$1 data-editor-ins="${marker}"$2`
+    );
+    if (!marked.includes(`data-editor-ins="${marker}"`)) {
+      marked = marked.replace(
+        /<(table|div)(\s)/i,
+        `<$1 data-editor-ins="${marker}"$2`
+      );
+    }
+  } else {
+    marked = marked.replace(
+      /<(table|div|p|a)(\s)/i,
+      `<$1 data-editor-ins="${marker}"$2`
+    );
+  }
   try {
     suneditor.insertHTML(marked, true, true);
   } catch (e) {
@@ -2359,15 +2369,23 @@ function insertHtmlIntoEditor(html) {
       return false;
     }
   }
-  // insertHTML이 실제로 들어갔는지 마커로 확인 (중복 append 방지)
+  // 링크카드면 카드 노드 증가/마커로 확인, 실패 시 강제 append
   try {
+    const afterCards = wysiwyg
+      ? wysiwyg.querySelectorAll('table.link-card, a.link-card, .link-card-block').length
+      : 0;
     const inserted = wysiwyg?.querySelector?.(`[data-editor-ins="${marker}"]`);
-    if (!inserted) {
+    const cardInserted =
+      /link-card/i.test(html) ? afterCards > beforeCards : !!inserted;
+    if (!cardInserted) {
       const cur = suneditor.getContents() || '';
       suneditor.setContents(cur + html);
-    } else {
+    } else if (inserted) {
       inserted.removeAttribute('data-editor-ins');
     }
+    wysiwyg
+      ?.querySelectorAll?.(`[data-editor-ins="${marker}"]`)
+      .forEach((el) => el.removeAttribute('data-editor-ins'));
   } catch (_) {
     /* ignore */
   }
