@@ -594,12 +594,65 @@
   padding-right: 4px;
 }
 
-.table .th-check input,
-.table .td-check input {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  vertical-align: middle;
+.pixel-mem-card {
+  padding: 16px 18px;
+  border: 1px solid var(--admin-border-soft);
+  border-radius: 10px;
+  background: var(--admin-surface, #fff);
+}
+
+.pixel-mem-card-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pixel-mem-common-line {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--admin-text);
+}
+
+.pixel-mem-common-line code {
+  font-weight: 700;
+  color: var(--admin-accent, #03c75a);
+}
+
+.pixel-mem-section-title {
+  margin: 22px 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pixel-mem-form {
+  padding: 14px;
+  border: 1px solid var(--admin-border-soft);
+  border-radius: 10px;
+  background: var(--admin-table-head, #fafafa);
+  margin-bottom: 8px;
+}
+
+.pixel-mem-form .form-row-inline {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pixel-mem-tag {
+  display: inline-block;
+  margin: 2px 6px 2px 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef7f1;
+  color: #1b5e20;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .pixel-mem-form .form-row-inline {
+    grid-template-columns: 1fr;
+  }
 }
 
 .table .title-link {

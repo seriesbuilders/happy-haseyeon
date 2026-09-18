@@ -223,6 +223,46 @@ export async function ensureCommentsColumns(env) {
   );
 }
 
+/** 픽셀/태그 적용 기록 (관리자 공용 메모) */
+export async function ensurePixelMemory(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS pixel_memory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scope TEXT NOT NULL DEFAULT 'global',
+      channel TEXT NOT NULL DEFAULT '',
+      identifier TEXT NOT NULL DEFAULT '',
+      note TEXT NOT NULL DEFAULT '',
+      post_id INTEGER,
+      post_title TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now','+9 hours'))
+    )
+  `).run();
+
+  try {
+    const { AD_COMMON_GTM_ID } = await import('./_pixels.js');
+    const exists = await env.DB.prepare(
+      `SELECT id FROM pixel_memory
+       WHERE scope = 'global' AND channel = 'GTM' AND identifier = ?
+       LIMIT 1`
+    )
+      .bind(AD_COMMON_GTM_ID)
+      .first();
+    if (!exists) {
+      await env.DB.prepare(
+        `INSERT INTO pixel_memory (scope, channel, identifier, note, post_title)
+         VALUES ('global', 'GTM', ?, ?, '')`
+      )
+        .bind(
+          AD_COMMON_GTM_ID,
+          '광고 블로그 랜딩 전체 공통 적용. Google Ads(AW) 전환 태그와 별도 운영. head + body noscript 자동 삽입.'
+        )
+        .run();
+    }
+  } catch (e) {
+    console.error('seed pixel_memory GTM', e);
+  }
+}
+
 /** 로컬/배포 공통 — 테이블 없으면 생성 + 기본 시드 */
 export async function ensureSchema(env) {
   if (schemaReady) {
@@ -230,6 +270,7 @@ export async function ensureSchema(env) {
       await ensurePostsColumns(env);
       await ensureCommentsColumns(env);
       await ensureViewsTables(env);
+      await ensurePixelMemory(env);
     } catch (e) {
       console.error('ensurePostsColumns', e);
     }
@@ -345,6 +386,7 @@ export async function ensureSchema(env) {
     await ensurePostsColumns(env);
     await ensureCommentsColumns(env);
     await ensureViewsTables(env);
+    await ensurePixelMemory(env);
   } catch (e) {
     console.error('posts migrate', e);
   }

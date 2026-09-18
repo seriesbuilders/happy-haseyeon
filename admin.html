@@ -7,7 +7,7 @@
   <title>관리자 — 행복하서연</title>
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/dist/css/suneditor.min.css" />
-  <link rel="stylesheet" href="/css/admin.css?v=20260918-sticky2" />
+  <link rel="stylesheet" href="/css/admin.css?v=20260918-pixelmem" />
 </head>
 <body class="admin-body">
   <div id="loginView" class="login-wrap">
@@ -47,6 +47,7 @@
             <button type="button" data-panel="ad-posts" class="active">광고 블로그 목록</button>
             <button type="button" data-panel="ad-comments">광고 블로그 댓글</button>
             <button type="button" data-panel="ad-stats">광고 조회수 리포트</button>
+            <button type="button" data-panel="pixel-memory">픽셀 메모리</button>
           </div>
         </div>
 
@@ -627,6 +628,96 @@
           </div>
         </section>
 
+        <section class="panel" id="panel-pixel-memory">
+          <p class="stats-lead">
+            광고 랜딩에 적용된 픽셀·태그 기록을 남기는 공용 메모입니다. 누구나 관리자에서 확인할 수 있습니다.
+            <strong>공통 GTM</strong>은 모든 광고 랜딩에 자동 삽입되며, <strong>Google Ads(AW)</strong> 등 글별 태그는 각 글 수정 화면에서 유지합니다.
+          </p>
+
+          <div class="pixel-mem-card" id="pixelMemCommonCard">
+            <h3 class="pixel-mem-card-title">현재 공통 적용</h3>
+            <p class="pixel-mem-common-line" id="pixelMemCommonLine">불러오는 중…</p>
+          </div>
+
+          <div class="toolbar" style="margin-top:16px">
+            <button type="button" class="btn btn-ghost" id="btnRefreshPixelMemory">새로고침</button>
+          </div>
+
+          <h3 class="pixel-mem-section-title">기록 추가</h3>
+          <div class="pixel-mem-form">
+            <div class="form-row-inline">
+              <div class="form-row">
+                <label for="pixelMemScope">범위</label>
+                <select id="pixelMemScope">
+                  <option value="global">전체(공통)</option>
+                  <option value="post">특정 글</option>
+                  <option value="note">메모</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label for="pixelMemChannel">채널</label>
+                <input type="text" id="pixelMemChannel" list="pixelMemChannelList" placeholder="예: GTM, Google Ads, Meta" />
+                <datalist id="pixelMemChannelList">
+                  <option value="GTM"></option>
+                  <option value="Google Ads"></option>
+                  <option value="GA4"></option>
+                  <option value="Meta"></option>
+                  <option value="TikTok"></option>
+                  <option value="Kakao"></option>
+                  <option value="Naver"></option>
+                </datalist>
+              </div>
+              <div class="form-row">
+                <label for="pixelMemId">ID / 라벨</label>
+                <input type="text" id="pixelMemId" placeholder="예: GTM-KMVZK8RW / AW-… / 라벨" />
+              </div>
+            </div>
+            <div class="form-row">
+              <label for="pixelMemNote">메모</label>
+              <textarea id="pixelMemNote" rows="2" placeholder="고객 요청, 적용 목적, 담당자 등"></textarea>
+            </div>
+            <div class="form-row">
+              <label for="pixelMemPostTitle">관련 글 제목 (선택)</label>
+              <input type="text" id="pixelMemPostTitle" placeholder="특정 랜딩이면 제목 기록" />
+            </div>
+            <button type="button" class="btn btn-primary" id="btnAddPixelMemory">기록 저장</button>
+          </div>
+
+          <h3 class="pixel-mem-section-title">적용 기록</h3>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>일시</th>
+                  <th>범위</th>
+                  <th>채널</th>
+                  <th>ID</th>
+                  <th>메모</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="pixelMemoryBody">
+                <tr><td colspan="6">불러오는 중…</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="pixel-mem-section-title">글별 픽셀 현황 (현재 저장된 값)</h3>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>글</th>
+                  <th>적용 태그</th>
+                </tr>
+              </thead>
+              <tbody id="pixelMemPostsBody">
+                <tr><td colspan="2">불러오는 중…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="panel" id="panel-ad-stats">
           <p class="stats-lead">광고 블로그 전용 일별 조회수입니다. 메인 게시글·홈 방문과는 분리되어 있습니다.</p>
           <div class="stats-toolbar">
@@ -1061,6 +1152,6 @@
   <script src="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/src/lang/ko.js"></script>
   <script src="/js/config.js"></script>
   <script src="/js/naver-paste-sanitize.js?v=20260918-react1"></script>
-  <script src="/js/admin.js?v=20260918-bulkdel"></script>
+  <script src="/js/admin.js?v=20260918-pixelmem"></script>
 </body>
 </html>

@@ -145,7 +145,7 @@ export function hasAnyPixel(raw) {
  * <head> 에 넣을 픽셀 HTML
  * — 비어 있으면 '' (자동 삽입 안 함)
  */
-export function buildPixelHeadHtml(raw) {
+export function buildPixelHeadHtml(raw, opts = {}) {
   const p = parseAdPixels(raw);
   const parts = [];
 
@@ -210,7 +210,8 @@ ${ttTracks}
 
   // —— Google GTM ——
   const gtmId = cleanId(p.google_gtm_id);
-  if (gtmId) {
+  const skipGtm = cleanId(opts.skipGtmId || '');
+  if (gtmId && gtmId !== skipGtm) {
     parts.push(`<!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -326,9 +327,36 @@ ${kk}
 }
 
 /** GTM noscript 는 body 직후용 */
-export function buildPixelBodyStartHtml(raw) {
+export function buildPixelBodyStartHtml(raw, opts = {}) {
   const p = parseAdPixels(raw);
   const gtmId = cleanId(p.google_gtm_id);
-  if (!gtmId) return '';
-  return `<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${gtmId}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>`;
+  const skip = cleanId(opts.skipGtmId || '');
+  if (!gtmId || (skip && gtmId === skip)) return '';
+  return buildGtmBodyHtml(gtmId);
+}
+
+/** 광고 랜딩 전체에 공통 적용하는 GTM (글별 Ads 태그와 별도) */
+export const AD_COMMON_GTM_ID = 'GTM-KMVZK8RW';
+
+export function buildGtmHeadHtml(gtmId) {
+  const id = cleanId(gtmId);
+  if (!id) return '';
+  return `<!-- Google Tag Manager (common) -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','${id}');</script>
+<!-- End Google Tag Manager -->
+`;
+}
+
+export function buildGtmBodyHtml(gtmId) {
+  const id = cleanId(gtmId);
+  if (!id) return '';
+  return `<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${id}"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+`;
 }

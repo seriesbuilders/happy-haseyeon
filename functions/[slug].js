@@ -1,6 +1,6 @@
 import { ensureSchema, getSettings } from './_utils.js';
 import { postHeadTags } from './_seo.js';
-import { buildPixelHeadHtml, buildPixelBodyStartHtml } from './_pixels.js';
+import { buildPixelHeadHtml, buildPixelBodyStartHtml, AD_COMMON_GTM_ID, buildGtmHeadHtml, buildGtmBodyHtml } from './_pixels.js';
 import { sanitizePostBodyHtml, enrichLinkCardPreviews } from './_body.js';
 
 function escapeHtml(s) {
@@ -138,9 +138,14 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   const blogName = settings.blog_name || '행복하서연';
   const profileName = settings.profile_name || '행복하서연';
   const { headHtml } = postHeadTags(post, settings, origin);
-  const pixelHead = buildPixelHeadHtml(post.ad_pixels);
-  const pixelBody = buildPixelBodyStartHtml(post.ad_pixels);
   const isAd = post.category === '광고';
+  const skipGtm = isAd ? AD_COMMON_GTM_ID : '';
+  const pixelHead =
+    (isAd ? buildGtmHeadHtml(AD_COMMON_GTM_ID) : '') +
+    buildPixelHeadHtml(post.ad_pixels, { skipGtmId: skipGtm });
+  const pixelBody =
+    (isAd ? buildGtmBodyHtml(AD_COMMON_GTM_ID) : '') +
+    buildPixelBodyStartHtml(post.ad_pixels, { skipGtmId: skipGtm });
   const profileImg = settings.profile_image
     ? `<img class="avatar" src="${escapeHtml(settings.profile_image)}" alt="" />`
     : `<div class="avatar placeholder">${escapeHtml(profileName.charAt(0))}</div>`;
