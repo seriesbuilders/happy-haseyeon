@@ -304,10 +304,11 @@ export async function enrichLinkCardPreviews(html, opts = {}) {
       'i'
     );
     out = out.replace(tableRe, (full, open, inner, close) => {
-      const { url: finalUrl, title, description, image, domain } = og;
+      const { title, description, image, domain } = og;
       const meta = parseUrlMeta(url);
       const card = buildLinkCardBlockHtml({
-        url: finalUrl || url,
+        // 클릭 URL은 저장된 원본(utm 유지). OG 메타만 채움
+        url,
         title: title || meta.domain,
         description,
         image: image || faviconFor(meta.hostname),
@@ -322,6 +323,29 @@ export async function enrichLinkCardPreviews(html, opts = {}) {
   return out;
 }
 
+/** DB/공개 페이지에 남은 네이버 [출처] 블록 제거 (에디터 prepare와 맞춤) */
+function stripSavedCitationBlocks(html) {
+  let out = String(html || '');
+  if (!out) return out;
+  // <p>[출처] …|작성자 …</p> 형태
+  out = out.replace(
+    /<(p|div|li|span)(\s[^>]*)?>\s*(?:\[\s*출처\s*\]|［\s*출처\s*］)[\s\S]*?(?:[|｜]\s*작성자[\s\S]*?)?<\/\1>/gi,
+    ''
+  );
+  // 단독 [출처] 라벨 문단
+  out = out.replace(
+    /<(p|div|li|span)(\s[^>]*)?>\s*(?:\[\s*출처\s*\]|［\s*출처\s*］)\s*<\/\1>/gi,
+    ''
+  );
+  // 텍스트로만 남은 출처 줄
+  out = out.replace(
+    /(?:\[\s*출처\s*\]|［\s*출처\s*］)[^\n<]{0,500}(?:[|｜]\s*작성자[^\n<]{0,80})?/gi,
+    ''
+  );
+  return out;
+}
+
 export function sanitizePostBodyHtml(html) {
-  return rebuildEmptyLinkCards(html || '');
+  // 공개 페이지도 에디터 저장본과 동일하게: 빈 카드 복구 + 출처 잔여 제거
+  return stripSavedCitationBlocks(rebuildEmptyLinkCards(html || ''));
 }
