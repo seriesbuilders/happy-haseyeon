@@ -141,21 +141,26 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   const pixelHead = buildPixelHeadHtml(post.ad_pixels);
   const pixelBody = buildPixelBodyStartHtml(post.ad_pixels);
   const isAd = post.category === '광고';
-  const selfPath = `/${encodeURIComponent(post.slug)}/`;
-
   const profileImg = settings.profile_image
     ? `<img class="avatar" src="${escapeHtml(settings.profile_image)}" alt="" />`
     : `<div class="avatar placeholder">${escapeHtml(profileName.charAt(0))}</div>`;
 
-  const topBackHref = isAd ? selfPath : '/';
   const topIconsHtml = isAd
-    ? `<span class="blog-icon-btn is-inert" aria-hidden="true" title="홈">⌂</span>
-        <span class="blog-icon-btn is-inert" aria-hidden="true" title="메뉴">≡</span>`
+    ? ''
     : `<a class="blog-icon-btn" href="/" aria-label="홈" title="홈">⌂</a>
         <button type="button" class="blog-icon-btn" data-open-drawer aria-label="메뉴 열기" title="메뉴">≡</button>`;
   const neighborBtnHtml = isAd
-    ? `<button type="button" class="neighbor-btn is-inert" aria-disabled="true" tabindex="-1">이웃추가</button>`
+    ? ''
     : `<button type="button" class="neighbor-btn">이웃추가</button>`;
+  const blogTopHtml = isAd
+    ? `<header class="blog-top blog-top--ad-spacer" aria-hidden="true"></header>`
+    : `<header class="blog-top">
+      <a class="back" href="/" aria-label="뒤로">←</a>
+      <a class="blog-name" href="/">${escapeHtml(blogName)}</a>
+      <div class="icons">
+        ${topIconsHtml}
+      </div>
+    </header>`;
   const adLockScript = isAd
     ? `
   <script>
@@ -167,12 +172,6 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
         if (location.href.split('#')[0] !== landingUrl) {
           location.replace(landingUrl);
         }
-      });
-      document.querySelectorAll('.blog-top .back, .blog-top .blog-name').forEach(function (el) {
-        el.addEventListener('click', function (e) {
-          e.preventDefault();
-          location.replace(landingUrl);
-        });
       });
     })();
   </script>`
@@ -241,18 +240,12 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   ${pixelHead}
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="/css/main.css" />
-  <link rel="stylesheet" href="/css/blog.css?v=20260918-ad-ui" />
+  <link rel="stylesheet" href="/css/blog.css?v=20260918-ad-ui2" />
 </head>
 <body>
   ${pixelBody}
   <div class="wrap"${isAd ? ' data-ad-landing="1"' : ''}>
-    <header class="blog-top">
-      <a class="back" href="${topBackHref}" aria-label="뒤로">←</a>
-      <a class="blog-name" href="${topBackHref}">${escapeHtml(blogName)}</a>
-      <div class="icons">
-        ${topIconsHtml}
-      </div>
-    </header>
+    ${blogTopHtml}
 
     <div class="profile-row">
       ${profileImg}

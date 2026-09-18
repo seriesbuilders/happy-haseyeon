@@ -9,6 +9,14 @@
   position: sticky;
   top: 0;
   z-index: 10;
+  /* 광고 스페이서도 동일 높이 유지 (← / 블로그명 줄과 맞춤) */
+  min-height: calc(32px + 24px);
+  box-sizing: border-box;
+}
+
+/* 광고 랜딩: 상단 컨트롤 제거, 위·아래 여백만 유지 */
+.blog-top--ad-spacer {
+  pointer-events: none;
 }
 
 .blog-top .back {
@@ -30,6 +38,7 @@
   white-space: nowrap;
   color: inherit;
   text-decoration: none;
+  letter-spacing: inherit;
 }
 
 .blog-top .icons {
@@ -107,19 +116,6 @@
   color: var(--naver);
   border-radius: 4px;
   font-weight: 600;
-}
-
-/* 광고 랜딩: 장식용 컨트롤 (클릭/포커스 없음) */
-.blog-icon-btn.is-inert,
-.neighbor-btn.is-inert {
-  pointer-events: none;
-  cursor: default;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.neighbor-btn.is-inert {
-  opacity: 1;
 }
 
 .post-title {

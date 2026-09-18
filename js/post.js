@@ -138,25 +138,26 @@ function ensurePostDrawerDom() {
       Number(post.comment_count_display) || Number(list.length) || 0;
     const commentActual = list.length;
     const isAd = post.category === '광고';
-    const selfPath = `/${encodeURIComponent(post.slug)}/`;
-    const home = isAd ? selfPath : '/';
+    const home = '/';
     const topIconsHtml = isAd
-      ? `<span class="blog-icon-btn is-inert" aria-hidden="true" title="홈">⌂</span>
-          <span class="blog-icon-btn is-inert" aria-hidden="true" title="메뉴">≡</span>`
+      ? ''
       : `<a class="blog-icon-btn" href="${home}" aria-label="홈" title="홈">⌂</a>
           <button type="button" class="blog-icon-btn" data-open-drawer aria-label="메뉴 열기" title="메뉴">≡</button>`;
     const neighborBtnHtml = isAd
-      ? `<button type="button" class="neighbor-btn is-inert" aria-disabled="true" tabindex="-1">이웃추가</button>`
+      ? ''
       : `<button type="button" class="neighbor-btn">이웃추가</button>`;
-
-    app.innerHTML = `
-      <header class="blog-top">
+    const blogTopHtml = isAd
+      ? `<header class="blog-top blog-top--ad-spacer" aria-hidden="true"></header>`
+      : `<header class="blog-top">
         <a class="back" href="${home}" aria-label="뒤로">←</a>
         <a class="blog-name" href="${home}">${escapeHtml(blogName)}</a>
         <div class="icons">
           ${topIconsHtml}
         </div>
-      </header>
+      </header>`;
+
+    app.innerHTML = `
+      ${blogTopHtml}
 
       <div class="profile-row">
         ${profileImg}
@@ -230,12 +231,6 @@ function ensurePostDrawerDom() {
         if (location.href.split('#')[0] !== landingUrl) {
           location.replace(landingUrl);
         }
-      });
-      document.querySelectorAll('.blog-top .back, .blog-top .blog-name').forEach((el) => {
-        el.addEventListener('click', (e) => {
-          e.preventDefault();
-          location.replace(landingUrl);
-        });
       });
     }
   } catch (e) {

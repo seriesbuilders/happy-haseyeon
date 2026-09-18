@@ -3798,12 +3798,24 @@ function buildPreviewHtml(settings) {
   const cover = document.getElementById('cover_image').value.trim();
   const body = prepareLinkCardsHtml(getEditorHtml() || '<p></p>');
   const cssBase = location.origin;
+  const isAd =
+    (document.getElementById('lockedCategory')?.value || '') === AD_CATEGORY;
   const profileImg = settings.profile_image
     ? `<img class="avatar" src="${escapeHtml(resolvePreviewUrl(settings.profile_image))}" alt="" />`
     : `<div class="avatar placeholder">${escapeHtml(profileName.charAt(0))}</div>`;
   const coverHtml = cover
     ? `<div class="post-cover"><img src="${escapeHtml(resolvePreviewUrl(cover))}" alt="" /></div>`
     : '';
+  const blogTopHtml = isAd
+    ? `<header class="blog-top blog-top--ad-spacer" aria-hidden="true"></header>`
+    : `<header class="blog-top">
+      <a class="back" href="/" aria-label="뒤로">←</a>
+      <div class="blog-name">${escapeHtml(blogName)}</div>
+      <div class="icons"><span>⌂</span><span>≡</span></div>
+    </header>`;
+  const neighborBtnHtml = isAd
+    ? ''
+    : `<button type="button" class="neighbor-btn">이웃추가</button>`;
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -3813,7 +3825,7 @@ function buildPreviewHtml(settings) {
   <base href="${cssBase}/" />
   <title>${escapeHtml(title)}</title>
   <link rel="stylesheet" href="${cssBase}/css/common.css?v=20260723-ogcard2" />
-  <link rel="stylesheet" href="${cssBase}/css/blog.css?v=20260723-ogcard2" />
+  <link rel="stylesheet" href="${cssBase}/css/blog.css?v=20260918-ad-ui2" />
   <style>
     body { margin: 0; background: #fff; }
     .preview-badge {
@@ -3882,19 +3894,15 @@ function buildPreviewHtml(settings) {
 </head>
 <body>
   <div class="preview-badge">미리보기 · 실제 발행 화면 예상</div>
-  <div class="wrap">
-    <header class="blog-top">
-      <a class="back" href="/" aria-label="뒤로">←</a>
-      <div class="blog-name">${escapeHtml(blogName)}</div>
-      <div class="icons"><span>⌂</span><span>≡</span></div>
-    </header>
+  <div class="wrap"${isAd ? ' data-ad-landing="1"' : ''}>
+    ${blogTopHtml}
     <div class="profile-row">
       ${profileImg}
       <div class="info">
         <div class="name">${escapeHtml(profileName)}</div>
         <div class="date">${escapeHtml(published)}</div>
       </div>
-      <button type="button" class="neighbor-btn">이웃추가</button>
+      ${neighborBtnHtml}
     </div>
     <h1 class="post-title">${escapeHtml(title)}</h1>
     <hr class="post-title-divider" />
