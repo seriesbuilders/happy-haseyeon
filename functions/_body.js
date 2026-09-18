@@ -150,6 +150,35 @@ export function rebuildEmptyLinkCards(html) {
     }
   );
 
+  // 속이 빈 table.link-card 껍질: data-* 로 재생성 (SunEditor 직렬화 잔해)
+  out = out.replace(
+    /<(?:p|div)\b([^>]*\bclass="[^"]*\blink-card-block\b[^"]*"[^>]*)>(\s*<table\b[^>]*\blink-card\b[^>]*>[\s\S]*?<\/table>\s*)<\/(?:p|div)>/gi,
+    (full, openAttrs, tablePart) => {
+      if (/link-card-title/i.test(tablePart)) return full;
+      const attrBlob = `${openAttrs || ''} ${String(tablePart).match(/<table\b[^>]*>/i)?.[0] || ''}`;
+      const urlM = String(attrBlob).match(/\bdata-url\s*=\s*["']([^"']+)["']/i);
+      if (!urlM?.[1]) return full;
+      const href = decodeEntities(urlM[1]);
+      const { url, hostname, domain: hostDomain } = parseUrlMeta(href);
+      const pick = (name) => {
+        const m = String(attrBlob).match(
+          new RegExp(`\\bdata-${name}\\s*=\\s*["']([^"']*)["']`, 'i')
+        );
+        return m?.[1] ? decodeEntities(m[1]) : '';
+      };
+      const align = /\bdata-align\s*=\s*["']left["']/i.test(attrBlob) ? 'left' : 'center';
+      const domain = pick('domain') || hostDomain;
+      return buildLinkCardBlockHtml({
+        url,
+        title: pick('title') || domain,
+        description: pick('desc') || '',
+        image: pick('image') || faviconFor(hostname),
+        domain,
+        align,
+      });
+    }
+  );
+
   // 남아 있는 URL 주소 줄 제거
   out = out.replace(
     /<p\b[^>]*\bclass="[^"]*\blink-card-url-line\b[^"]*"[^>]*>[\s\S]*?<\/p>/gi,

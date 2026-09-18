@@ -60,6 +60,29 @@ let passed = 0;
 }
 
 {
+  // 제품 카드 바로 아래 [출처]|작성자 잔여 → 제거, 카드는 유지
+  const productUrl = 'https://repurely.com/surl/P/100';
+  const html = `
+<p>딱 하루만 링크 올려둘게요.</p>
+<div class="link-card-block" data-url="${productUrl}" data-domain="repurely.com">
+  <table class="link-card" data-url="${productUrl}" data-domain="repurely.com">
+    <tr><td class="link-card-media"></td></tr>
+    <tr><td><a class="link-card-title" href="${productUrl}">올레놀샷 NMN</a></td></tr>
+  </table>
+</div>
+<p>[출처] [팔자주름 셀프해결법] 70대 친정엄마 피부과 도움 없이 팔자주름 없애고 20년 회춘하심!! 효과 대박...|작성자 행복하서연</p>
+`;
+  const out = api.sanitizePastedHtml(html);
+  const text = plain(out);
+  assert.ok(out.includes('link-card'), 'keep card beside citation');
+  assert.ok(out.includes('올레놀샷'), 'keep card title');
+  assert.ok(!/\[\s*출처\s*\]/.test(text), 'strip citation label: ' + text);
+  assert.ok(!/작성자\s*행복하서연/.test(text), 'strip author: ' + text);
+  passed++;
+  console.log('OK citation under product card stripped');
+}
+
+{
   assert.ok(api.isNaverBlogUrl('https://blog.naver.com/a/1'));
   assert.ok(!api.isNaverBlogUrl('https://repurely.com/surl/P/100'));
   passed++;

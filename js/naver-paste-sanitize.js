@@ -11,9 +11,9 @@
   }
   root.NaverPasteSanitize = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-  const SOURCE_LABEL_RE = /\[\s*출처\s*\]|［\s*출처\s*］/;
-  const AUTHOR_RE = /\|\s*작성자\s*\S+/;
-  const SOURCE_START_RE = /^\s*(?:\[\s*출처\s*\]|［\s*출처\s*］|출처\s*[:：])/;
+  const SOURCE_LABEL_RE = /\[\s*출처\s*\]|［\s*출처\s*］|&#91;\s*출처\s*&#93;/;
+  const AUTHOR_RE = /[|｜]\s*작성자\s*\S+/;
+  const SOURCE_START_RE = /^\s*(?:\[\s*출처\s*\]|［\s*출처\s*］|&#91;\s*출처\s*&#93;|출처\s*[:：])/;
   const NAVER_BLOG_HOST_RE =
     /^(?:www\.)?(?:m\.)?blog\.naver\.com$/i;
   const NAVER_BLOG_URL_RE =
@@ -58,6 +58,14 @@
     const text = cleanText(t);
     if (!text) return false;
     if (SOURCE_LABEL_RE.test(text) && AUTHOR_RE.test(text) && text.length <= 800) {
+      return true;
+    }
+    // [출처] …작성자 행복하서연 (파이프 유무 모두)
+    if (
+      SOURCE_LABEL_RE.test(text) &&
+      /작성자\s*\S+/.test(text) &&
+      text.length <= 800
+    ) {
       return true;
     }
     if (SOURCE_START_RE.test(text) && text.length <= 40) return true;
@@ -210,12 +218,19 @@
   function stripNaverSourceCitation(root) {
     if (!root) return;
 
-    // 0) [출처]/출처원문 이 나오는 지점부터 문서 끝까지 삭제
-    //    (본문 + 출처원문이 한 번에 붙어 들어오는 케이스)
+    // 0) 루트 직계 자식이 [출처]로 시작하면 그 지점부터 문서 끝까지 삭제
+    //    단, 링크카드·이미지가 같은 자식 안에 있으면 통째 절단하지 않음(카드 보호)
     const kids = [...root.children];
     let cutAt = -1;
     for (let i = 0; i < kids.length; i++) {
-      const t = cleanText(kids[i].textContent);
+      const kid = kids[i];
+      if (
+        kid.classList?.contains('link-card-block') ||
+        kid.querySelector?.('.link-card-block, table.link-card, img')
+      ) {
+        continue;
+      }
+      const t = cleanText(kid.textContent);
       if (
         SOURCE_LABEL_RE.test(t) ||
         SOURCE_START_RE.test(t) ||
@@ -224,15 +239,6 @@
         cutAt = i;
         break;
       }
-      // 자식 안에 [출처] 라벨이 있으면 그 블록부터 절단
-      for (const p of kids[i].querySelectorAll?.('p, div, span, li') || []) {
-        const pt = cleanText(p.textContent);
-        if (SOURCE_LABEL_RE.test(pt) || SOURCE_START_RE.test(pt)) {
-          cutAt = i;
-          break;
-        }
-      }
-      if (cutAt >= 0) break;
     }
     if (cutAt >= 0) {
       kids.slice(cutAt).forEach((el) => removeEl(el));
@@ -242,6 +248,7 @@
 
     const consider = (el) => {
       if (!el || el === root || !el.isConnected) return;
+      if (el.closest?.('.link-card-block, table.link-card')) return;
       const t = cleanText(el.textContent);
       if (!isCitationText(t)) return;
       victims.add(pickCitationTarget(el, root));
@@ -249,19 +256,21 @@
 
     for (const el of [...root.querySelectorAll('p, div, span, li, td, th, a, table, blockquote, section, article')]) {
       if (!el.isConnected) continue;
+      if (el.closest?.('.link-card-block, table.link-card')) continue;
       const t = cleanText(el.textContent);
-      if (!SOURCE_LABEL_RE.test(t) && !AUTHOR_RE.test(t)) continue;
+      if (!SOURCE_LABEL_RE.test(t) && !AUTHOR_RE.test(t) && !/작성자/.test(t)) continue;
       if (isCitationText(t)) consider(el);
     }
 
     for (const el of [...root.querySelectorAll('p, div, li, span')]) {
       if (!el.isConnected) continue;
+      if (el.closest?.('.link-card-block, table.link-card')) continue;
       const t = cleanText(el.textContent);
       if (!SOURCE_LABEL_RE.test(t)) continue;
       if (t.replace(SOURCE_LABEL_RE, '').trim().length > 20 && !isCitationText(t)) continue;
       victims.add(pickCitationTarget(el, root));
       const next = el.nextElementSibling;
-      if (next) {
+      if (next && !next.closest?.('.link-card-block, table.link-card')) {
         const nt = cleanText(next.textContent);
         if (
           AUTHOR_RE.test(nt) ||
@@ -272,7 +281,10 @@
       }
     }
 
-    for (const el of victims) removeEl(el);
+    for (const el of victims) {
+      if (el?.closest?.('.link-card-block, table.link-card')) continue;
+      removeEl(el);
+    }
 
     const textNodes = [];
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -337,11 +349,11 @@
     let s = String(text || '');
     if (!s.trim()) return s;
     s = s.replace(
-      /(?:\[\s*출처\s*\]|［\s*출처\s*］)[^\n]{0,20}(?:\r?\n|\s)*[^\n]{0,400}\|\s*작성자\s*[^\n]{1,60}/gi,
+      /(?:\[\s*출처\s*\]|［\s*출처\s*］)[^\n]{0,20}(?:\r?\n|\s)*[^\n]{0,400}[|｜]\s*작성자\s*[^\n]{1,60}/gi,
       ''
     );
     s = s.replace(/(?:\[\s*출처\s*\]|［\s*출처\s*］)[^\n]{0,500}/gi, '');
-    s = s.replace(/(?:^|\n)[^\n]*\|\s*작성자\s+[^\n]{1,60}/gi, (line) => {
+    s = s.replace(/(?:^|\n)[^\n]*[|｜]\s*작성자\s+[^\n]{1,60}/gi, (line) => {
       return /\[.+\]/.test(line) || /작성자/.test(line) ? '\n' : line;
     });
     // 네이버 블로그 URL 줄 제거

@@ -1122,28 +1122,37 @@ function normalizeBodyHtml(html) {
   }
 }
 
+function linkCardHtmlScore(html) {
+  const s = String(html || '');
+  const tables = (s.match(/<table\b[^>]*\blink-card\b/gi) || []).length;
+  const titles = (s.match(/link-card-title/gi) || []).length;
+  const media = (s.match(/link-card-media/gi) || []).length;
+  const dataUrls = (s.match(/\bdata-url\s*=/gi) || []).length;
+  // 속이 빈 table 껍질보다 실제 타이틀·미디어가 있는 DOM을 크게 가산
+  return tables * 10 + titles * 80 + media * 40 + dataUrls * 15 + Math.min(s.length, 80000) / 800;
+}
+
 function getEditorHtml() {
   if (!suneditor) return document.getElementById('body').value || '';
-  // SunEditor getContents()가 table.link-card 를 비우는 경우가 있어
-  // 화면(wysiwyg)에 카드가 더 많으면 DOM HTML을 우선 사용
+  // SunEditor getContents()가 table.link-card 속을 비우면서도 table 개수는
+  // 그대로 두는 경우가 있어, 카드가 있으면 화면(wysiwyg) DOM을 우선 사용
   try {
     const fromApi = suneditor.getContents() || '';
     const wysiwyg = suneditor.core?.context?.element?.wysiwyg;
     const fromDom = wysiwyg ? wysiwyg.innerHTML || '' : '';
     if (!fromDom) return fromApi;
-    const count = (html) =>
-      (String(html).match(/<table\b[^>]*\blink-card\b/gi) || []).length;
-    if (count(fromDom) > count(fromApi)) return fromDom;
-    // 카드는 같은데 API가 본문을 과도하게 줄인 경우도 DOM 우선
-    if (
-      count(fromDom) > 0 &&
-      fromDom.length > fromApi.length + 80 &&
-      count(fromApi) === 0
-    ) {
-      return fromDom;
-    }
+    if (!/link-card/i.test(fromDom)) return fromApi || fromDom;
+    const apiScore = linkCardHtmlScore(fromApi);
+    const domScore = linkCardHtmlScore(fromDom);
+    if (domScore >= apiScore) return fromDom;
     return fromApi || fromDom;
   } catch {
+    try {
+      const wysiwyg = suneditor.core?.context?.element?.wysiwyg;
+      if (wysiwyg?.innerHTML) return wysiwyg.innerHTML;
+    } catch {
+      /* ignore */
+    }
     return suneditor.getContents() || '';
   }
 }
@@ -2141,6 +2150,66 @@ function hardenLinkCardsInEditor() {
   });
 }
 
+function isHollowLinkCardTable(table) {
+  if (!table) return true;
+  if (table.querySelector?.('.link-card-title, .link-card-desc, .link-card-domain')) {
+    return false;
+  }
+  const text = String(table.textContent || '')
+    .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length < 2;
+}
+
+function rebuildLinkCardBlockFromEl(doc, empty) {
+  const prev = empty.previousElementSibling;
+  const table = empty.querySelector?.('table.link-card');
+  const href =
+    empty.getAttribute('data-url') ||
+    table?.getAttribute('data-url') ||
+    (prev?.classList?.contains('link-card-url-line') &&
+      prev.querySelector('a[href]')?.getAttribute('href')) ||
+    table?.querySelector?.('a[href]')?.getAttribute('href') ||
+    '';
+  if (!href) return null;
+  let domain =
+    decodeHtmlEntities(
+      empty.getAttribute('data-domain') || table?.getAttribute('data-domain') || ''
+    ) || '';
+  try {
+    if (!domain) domain = new URL(href).hostname.replace(/^www\./, '');
+  } catch {
+    domain = domain || href;
+  }
+  const align =
+    (
+      empty.getAttribute('data-align') ||
+      table?.getAttribute('data-align') ||
+      'center'
+    ).toLowerCase() === 'left'
+      ? 'left'
+      : 'center';
+  const title =
+    decodeHtmlEntities(
+      empty.getAttribute('data-title') || table?.getAttribute('data-title') || ''
+    ) || domain;
+  const description = decodeHtmlEntities(
+    empty.getAttribute('data-desc') || table?.getAttribute('data-desc') || ''
+  );
+  const image =
+    decodeHtmlEntities(
+      empty.getAttribute('data-image') || table?.getAttribute('data-image') || ''
+    ) ||
+    `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+  const wrap = doc.createElement('div');
+  wrap.innerHTML = buildLinkCardHtml(
+    { url: href, title, description, image, domain },
+    { align }
+  );
+  return wrap.querySelector('.link-card-block');
+}
+
 /** 미리보기/저장 직전: 링크 카드 HTML을 정상 구조로 복구 */
 function prepareLinkCardsHtml(html) {
   if (!html) return html;
@@ -2152,41 +2221,17 @@ function prepareLinkCardsHtml(html) {
     const root = doc.getElementById('__lc_root__');
     if (!root) return html;
 
-    // 빈 link-card-block → 래퍼 data-url 또는 직전 URL 줄로 카드 재생성
+    // 빈/속이 빈 link-card-block → 래퍼·table data-* 또는 직전 URL 줄로 카드 재생성
     for (const empty of [...root.querySelectorAll('.link-card-block')]) {
-      if (empty.querySelector('table.link-card, a.link-card')) continue;
+      const table = empty.querySelector('table.link-card');
+      const anchor = empty.querySelector('a.link-card');
+      if (anchor) continue;
+      if (table && !isHollowLinkCardTable(table)) continue;
       const prev = empty.previousElementSibling;
-      const href =
-        empty.getAttribute('data-url') ||
-        (prev?.classList?.contains('link-card-url-line') &&
-          prev.querySelector('a[href]')?.getAttribute('href')) ||
-        '';
-      if (!href) continue;
-      let domain =
-        decodeHtmlEntities(empty.getAttribute('data-domain') || '') || '';
-      try {
-        if (!domain) domain = new URL(href).hostname.replace(/^www\./, '');
-      } catch {
-        domain = domain || href;
-      }
-      const align =
-        (empty.getAttribute('data-align') || 'center').toLowerCase() === 'left'
-          ? 'left'
-          : 'center';
-      const title =
-        decodeHtmlEntities(empty.getAttribute('data-title') || '') || domain;
-      const description = decodeHtmlEntities(empty.getAttribute('data-desc') || '');
-      const image =
-        decodeHtmlEntities(empty.getAttribute('data-image') || '') ||
-        `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
-      const wrap = doc.createElement('div');
-      wrap.innerHTML = buildLinkCardHtml(
-        { url: href, title, description, image, domain },
-        { align }
-      );
-      const newBlock = wrap.querySelector('.link-card-block');
+      const newBlock = rebuildLinkCardBlockFromEl(doc, empty);
+      if (!newBlock) continue;
       if (prev?.classList?.contains('link-card-url-line')) prev.remove();
-      if (newBlock) empty.replaceWith(newBlock);
+      empty.replaceWith(newBlock);
     }
 
     // 구버전 a.link-card / background-image 썸네일도 수집
@@ -2292,10 +2337,58 @@ function prepareLinkCardsHtml(html) {
     // 남아 있는 URL 주소 줄 전부 제거
     root.querySelectorAll('.link-card-url-line, [data-lc-part="url"]').forEach((el) => el.remove());
 
+    // 링크 카드 옆/아래 [출처] …|작성자 잔여 제거 (미리보기·저장 공통)
+    stripNaverSourceCitation(root);
+    stripCitationSiblingsNearLinkCards(root);
+
     return root.innerHTML;
   } catch (e) {
     console.error('prepareLinkCardsHtml', e);
     return html;
+  }
+}
+
+/** 링크 카드 바로 다음 형제의 네이버 [출처] 문단 제거 */
+function stripCitationSiblingsNearLinkCards(root) {
+  if (!root) return;
+  const api = getNaverPasteApi();
+  const isCite =
+    typeof api.isCitationText === 'function'
+      ? (t) => api.isCitationText(t)
+      : (t) => /\[\s*출처\s*\]|［\s*출처\s*］/.test(t) || /[|｜]\s*작성자/.test(t);
+
+  for (const block of [...root.querySelectorAll('.link-card-block, table.link-card')]) {
+    const host = block.classList?.contains('link-card-block')
+      ? block
+      : block.closest?.('.link-card-block') || block;
+    let sib = host.nextElementSibling;
+    let guard = 0;
+    while (sib && guard++ < 8) {
+      const next = sib.nextElementSibling;
+      const t = String(sib.textContent || '')
+        .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!t) {
+        // 빈 <p><br></p> 는 카드 직후 한두 개까지 허용, 출처 뒤에 남은 빈칸도 정리
+        sib = next;
+        continue;
+      }
+      if (
+        isCite(t) ||
+        /(?:\[\s*출처\s*\]|［\s*출처\s*］)/.test(t) ||
+        (/[|｜]\s*작성자/.test(t) && t.length <= 800)
+      ) {
+        try {
+          sib.remove();
+        } catch {
+          /* ignore */
+        }
+        sib = next;
+        continue;
+      }
+      break;
+    }
   }
 }
 
@@ -3038,6 +3131,8 @@ async function savePost() {
   try {
     // 저장 직전 일반 링크 → 썸네일 카드 변환 완료 대기
     await convertPlainLinksInEditor();
+    hardenLinkCardsInEditor();
+    scrubNaverSourceInEditor();
     // 저장 시 sanitizePastedHtml 을 다시 돌리면 [출처] 절단·임베드 정리가
     // 이미 편집된 본문/제품 카드를 통째로 날릴 수 있음 → 카드 복구만 수행
     let bodyHtml = normalizeBodyHtml(
@@ -3048,7 +3143,10 @@ async function savePost() {
       bodyHtml = normalizeBodyHtml(
         prepareLinkCardsHtml(await replaceBase64ImagesInHtml(bodyHtml))
       );
-      if (suneditor) suneditor.setContents(bodyHtml);
+      if (suneditor) {
+        suneditor.setContents(bodyHtml);
+        hardenLinkCardsInEditor();
+      }
     }
 
     let mirrorFailed = 0;
@@ -3063,7 +3161,10 @@ async function savePost() {
       bodyHtml = normalizeBodyHtml(prepareLinkCardsHtml(mirrored.html));
       mirrorFailed += mirrored.failedCount;
       mirrorOk += mirrored.mirroredCount;
-      if (suneditor) suneditor.setContents(bodyHtml);
+      if (suneditor) {
+        suneditor.setContents(bodyHtml);
+        hardenLinkCardsInEditor();
+      }
     }
 
     let coverImage = document.getElementById('cover_image').value.trim();
@@ -3472,8 +3573,7 @@ function stripImageUrlFromHtml(html, url) {
       new RegExp(`background-image\\s*:\\s*url\\s*\\(\\s*(["']?)${esc}\\1\\s*\\)`, 'gi'),
       'background-image:none'
     );
-    // 남은 평문 URL도 제거 (속성 파편)
-    out = out.split(u).join('');
+    // 평문 split/join 은 data-url·마크업을 깨뜨리므로 속성만 정리
   }
   return out;
 }
