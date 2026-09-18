@@ -196,9 +196,9 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
             <span class="c-date">${escapeHtml(c.created_at)}</span>
           </div>
           <div class="c-text">${escapeHtml(c.content)}</div>
-          <div class="c-react" aria-label="추천 비추천">
-            <span class="c-react__item c-react__item--up">추천 <em>${Number(c.likes || 0).toLocaleString()}</em></span>
-            <span class="c-react__item c-react__item--down">비추천 <em>${Number(c.dislikes || 0).toLocaleString()}</em></span>
+          <div class="c-react" aria-label="추천 비추천" data-comment-id="${c.id}">
+            <button type="button" class="c-react__item c-react__item--up" data-vote="up" aria-label="추천">추천 <em>${Number(c.likes || 0).toLocaleString()}</em></button>
+            <button type="button" class="c-react__item c-react__item--down" data-vote="down" aria-label="비추천">비추천 <em>${Number(c.dislikes || 0).toLocaleString()}</em></button>
           </div>
           ${replyList}
         </div>
@@ -240,7 +240,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   ${pixelHead}
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="/css/main.css" />
-  <link rel="stylesheet" href="/css/blog.css?v=20260918-cmt1" />
+  <link rel="stylesheet" href="/css/blog.css?v=20260918-reactvote" />
 </head>
 <body>
   ${pixelBody}
@@ -313,7 +313,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   <script src="/js/config.js"></script>
   <script src="/js/cafe-common.js?v=20260918-nomy"></script>
   <script src="/js/track-view.js"></script>
-  <script src="/js/post-comments.js?v=20260918-cmt1"></script>
+  <script src="/js/post-comments.js?v=20260918-reactvote"></script>
   <script>
     loadCafeTabs('홈');
     bindCafeBottomNav();

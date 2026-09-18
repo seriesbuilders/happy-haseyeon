@@ -928,6 +928,26 @@ img.comment-form-avatar {
   color: #666;
   box-sizing: border-box;
   user-select: none;
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+button.c-react__item:hover {
+  filter: brightness(0.98);
+}
+
+.c-react__item--up.is-active {
+  border-color: #03c75a;
+  background: #eaf8ef;
+  box-shadow: inset 0 0 0 1px rgba(3, 199, 90, 0.15);
+}
+
+.c-react__item--down.is-active {
+  border-color: #bbb;
+  background: #f0f0f0;
+  color: #555;
 }
 
 .c-react__item::before {

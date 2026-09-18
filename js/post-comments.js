@@ -10,8 +10,9 @@ function commentItemHtml(c, { isReply = false } = {}) {
   const avatar = c.profile_image
     ? `<img class="c-avatar c-avatar--img" src="${escapeHtml(c.profile_image)}" alt="" />`
     : `<div class="c-avatar" style="background:${avatarColor(c.author)}">${escapeHtml(initial)}</div>`;
+  const cid = Number(c.id) || 0;
   return `
-    <div class="comment${isReply ? ' comment--reply' : ''}" data-comment-id="${c.id || ''}">
+    <div class="comment${isReply ? ' comment--reply' : ''}" data-comment-id="${cid || ''}">
       ${avatar}
       <div class="c-body">
         <div>
@@ -19,9 +20,9 @@ function commentItemHtml(c, { isReply = false } = {}) {
           <span class="c-date">${escapeHtml(c.created_at || '')}</span>
         </div>
         <div class="c-text">${escapeHtml(c.content)}</div>
-        <div class="c-react" aria-label="추천 비추천">
-          <span class="c-react__item c-react__item--up">추천 <em>${Number(c.likes || 0).toLocaleString()}</em></span>
-          <span class="c-react__item c-react__item--down">비추천 <em>${Number(c.dislikes || 0).toLocaleString()}</em></span>
+        <div class="c-react" aria-label="추천 비추천" data-comment-id="${cid}">
+          <button type="button" class="c-react__item c-react__item--up" data-vote="up" aria-label="추천">추천 <em>${Number(c.likes || 0).toLocaleString()}</em></button>
+          <button type="button" class="c-react__item c-react__item--down" data-vote="down" aria-label="비추천">비추천 <em>${Number(c.dislikes || 0).toLocaleString()}</em></button>
         </div>
         ${isReply ? '' : '<div class="comment-replies"></div>'}
       </div>
@@ -81,6 +82,108 @@ function appendCommentToList(data) {
   list.querySelector('.post-error, .comment-empty')?.remove();
   list.insertAdjacentHTML('beforeend', commentItemHtml(data.comment));
   if (data.comment_count != null) updateCommentCounts(data.comment_count);
+  bindCommentReactions(list);
+}
+
+function getCommentVote(commentId) {
+  try {
+    return localStorage.getItem(`comment-vote:${commentId}`) || '';
+  } catch {
+    return '';
+  }
+}
+
+function setCommentVote(commentId, vote) {
+  try {
+    const key = `comment-vote:${commentId}`;
+    if (vote) localStorage.setItem(key, vote);
+    else localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+function applyCommentVoteUi(box, vote) {
+  const up = box.querySelector('[data-vote="up"]');
+  const down = box.querySelector('[data-vote="down"]');
+  up?.classList.toggle('is-active', vote === 'up');
+  down?.classList.toggle('is-active', vote === 'down');
+  up?.setAttribute('aria-pressed', vote === 'up' ? 'true' : 'false');
+  down?.setAttribute('aria-pressed', vote === 'down' ? 'true' : 'false');
+}
+
+function setReactCount(btn, n) {
+  const em = btn?.querySelector('em');
+  if (em) em.textContent = Math.max(0, Number(n) || 0).toLocaleString();
+}
+
+function readReactCount(btn) {
+  return parseInt(String(btn?.querySelector('em')?.textContent || '0').replace(/,/g, ''), 10) || 0;
+}
+
+/** 댓글 추천·비추천 클릭 바인딩 */
+function bindCommentReactions(root) {
+  const scope = root || document;
+  scope.querySelectorAll('.c-react[data-comment-id]').forEach((box) => {
+    if (box.dataset.bound === '1') return;
+    const commentId = Number(box.dataset.commentId) || 0;
+    if (!commentId) return;
+    box.dataset.bound = '1';
+
+    const current = getCommentVote(commentId);
+    if (current === 'up' || current === 'down') applyCommentVoteUi(box, current);
+
+    box.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-vote]');
+      if (!btn || box.dataset.busy === '1') return;
+      e.preventDefault();
+
+      const next = btn.dataset.vote;
+      const prev = getCommentVote(commentId) || null;
+      const to = prev === next ? null : next;
+
+      const upBtn = box.querySelector('[data-vote="up"]');
+      const downBtn = box.querySelector('[data-vote="down"]');
+      const prevLikes = readReactCount(upBtn);
+      const prevDislikes = readReactCount(downBtn);
+
+      let likes = prevLikes;
+      let dislikes = prevDislikes;
+      if (prev === 'up') likes = Math.max(0, likes - 1);
+      if (prev === 'down') dislikes = Math.max(0, dislikes - 1);
+      if (to === 'up') likes += 1;
+      if (to === 'down') dislikes += 1;
+
+      applyCommentVoteUi(box, to);
+      setCommentVote(commentId, to);
+      setReactCount(upBtn, likes);
+      setReactCount(downBtn, dislikes);
+
+      box.dataset.busy = '1';
+      try {
+        const api =
+          typeof apiUrl === 'function'
+            ? apiUrl(`/api/comments/${commentId}/react`)
+            : `/api/comments/${commentId}/react`;
+        const res = await fetch(api, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: prev, to }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'react failed');
+        if (data.likes != null) setReactCount(upBtn, data.likes);
+        if (data.dislikes != null) setReactCount(downBtn, data.dislikes);
+      } catch {
+        applyCommentVoteUi(box, prev);
+        setCommentVote(commentId, prev);
+        setReactCount(upBtn, prevLikes);
+        setReactCount(downBtn, prevDislikes);
+      } finally {
+        box.dataset.busy = '0';
+      }
+    });
+  });
 }
 
 function bindGuestCommentForm(form) {
@@ -170,6 +273,7 @@ function bindPostComments(postId, opts = {}) {
   box.innerHTML = guestCommentFormHtml(id, { sheet: false });
   bindGuestCommentForm(document.getElementById('pageCommentForm'));
   document.querySelectorAll('.c-reply-btn').forEach((el) => el.remove());
+  bindCommentReactions(document.getElementById('commentList') || document);
 }
 
 if (typeof window !== 'undefined') {
@@ -178,5 +282,6 @@ if (typeof window !== 'undefined') {
   window.updateCommentCounts = updateCommentCounts;
   window.guestCommentFormHtml = guestCommentFormHtml;
   window.bindGuestCommentForm = bindGuestCommentForm;
+  window.bindCommentReactions = bindCommentReactions;
   window.getGuestNickname = getGuestNickname;
 }

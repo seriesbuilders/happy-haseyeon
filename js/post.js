@@ -103,9 +103,9 @@ function ensurePostDrawerDom() {
               <span class="c-date">${escapeHtml(c.created_at)}</span>
             </div>
             <div class="c-text">${escapeHtml(c.content)}</div>
-            <div class="c-react" aria-label="추천 비추천">
-              <span class="c-react__item c-react__item--up">추천 <em>${Number(c.likes || 0).toLocaleString()}</em></span>
-              <span class="c-react__item c-react__item--down">비추천 <em>${Number(c.dislikes || 0).toLocaleString()}</em></span>
+            <div class="c-react" aria-label="추천 비추천" data-comment-id="${c.id}">
+              <button type="button" class="c-react__item c-react__item--up" data-vote="up" aria-label="추천">추천 <em>${Number(c.likes || 0).toLocaleString()}</em></button>
+              <button type="button" class="c-react__item c-react__item--down" data-vote="down" aria-label="비추천">비추천 <em>${Number(c.dislikes || 0).toLocaleString()}</em></button>
             </div>
             ${isReply ? '' : replyList}
           </div>
