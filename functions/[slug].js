@@ -312,7 +312,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   </div>
 
   <script src="/js/config.js"></script>
-  <script src="/js/cafe-common.js?v=20260918-react1"></script>
+  <script src="/js/cafe-common.js?v=20260918-like1"></script>
   <script src="/js/track-view.js"></script>
   <script src="/js/post-comments.js"></script>
   <script>
