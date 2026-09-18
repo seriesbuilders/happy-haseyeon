@@ -621,6 +621,33 @@ function bindAdminNav() {
   });
 }
 
+function getEditorQuickActionsStickyOffset() {
+  const row = document.querySelector('#panel-edit .editor-label-row');
+  if (!row) return 56;
+  const h = Math.ceil(row.getBoundingClientRect().height);
+  return Math.max(44, h || 56);
+}
+
+/** 빠른 버튼 줄 높이 → CSS 변수 + SunEditor stickyToolbar 동기화 */
+function syncEditorStickyToolbar() {
+  const offset = getEditorQuickActionsStickyOffset();
+  document.documentElement.style.setProperty('--editor-sticky-top', offset + 'px');
+  try {
+    if (suneditor?.options) {
+      suneditor.options.stickyToolbar = offset;
+    }
+    // SunEditor 2.x: 이미 sticky 중이면 top 갱신
+    const bar = document.querySelector('#panel-edit .sun-editor .se-toolbar');
+    if (bar) {
+      if (bar.classList.contains('se-toolbar-sticky') || getComputedStyle(bar).position === 'fixed') {
+        bar.style.top = offset + 'px';
+      }
+    }
+  } catch (_) {
+    /* ignore */
+  }
+}
+
 function ensureEditor() {
   if (suneditor || typeof SUNEDITOR === 'undefined') return;
 
@@ -647,12 +674,16 @@ function ensureEditor() {
         ['removeFormat'],
       ];
 
+  syncEditorStickyToolbar();
+
   suneditor = SUNEDITOR.create(document.getElementById('body'), {
     lang: SUNEDITOR_LANG.ko,
     width: '100%',
     height: 'auto',
     minHeight: isMobile ? '48vh' : '70vh',
     resizingBar: true,
+    // 상단 「링크 썸네일」빠른 버튼 줄 아래에 SunEditor 툴바도 같이 sticky
+    stickyToolbar: getEditorQuickActionsStickyOffset(),
     placeholder: '본문을 입력하세요. 저장 시 이미지는 자동으로 우리 서버(R2)에 복사됩니다.',
     buttonList,
     // 링크 카드(table/data-* / style) 보존
@@ -889,6 +920,25 @@ function ensureEditor() {
       updateSeoPreview();
     },
   });
+
+  syncEditorStickyToolbar();
+  if (!window.__editorStickyBound) {
+    window.__editorStickyBound = true;
+    window.addEventListener('resize', () => {
+      clearTimeout(window.__editorStickyTimer);
+      window.__editorStickyTimer = setTimeout(() => syncEditorStickyToolbar(), 100);
+    });
+    window.addEventListener(
+      'scroll',
+      () => {
+        // sticky 전환 직후 top 어긋남 보정
+        if (document.querySelector('#panel-edit .sun-editor .se-toolbar-sticky')) {
+          syncEditorStickyToolbar();
+        }
+      },
+      { passive: true }
+    );
+  }
 }
 
 let gapTimer = null;

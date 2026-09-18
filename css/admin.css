@@ -2204,6 +2204,20 @@ img.cm-avatar {
   border-color: var(--admin-border);
 }
 
+/* SunEditor 툴바: 빠른 버튼 줄 바로 아래에서 같이 sticky */
+.panel-edit .sun-editor .se-toolbar {
+  position: sticky;
+  top: var(--editor-sticky-top, 56px);
+  z-index: 74;
+  background: var(--admin-surface, #fff);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.panel-edit .sun-editor .se-toolbar.se-toolbar-sticky {
+  top: var(--editor-sticky-top, 56px) !important;
+  z-index: 74 !important;
+}
+
 .panel-edit .sun-editor .se-wrapper-inner {
   min-height: 70vh;
 }
