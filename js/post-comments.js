@@ -263,21 +263,45 @@ function bindGuestCommentForm(form) {
   });
 }
 
-/** 공개 페이지: 닉네임 + 내용으로 바로 댓글 작성 */
+/** 공개 페이지: 닉네임 + 내용 작성폼 (최초에는 숨김, 댓글 아이콘 클릭 시 표시) */
 function bindPostComments(postId, opts = {}) {
   const box = document.getElementById('commentCompose');
   if (!box) return;
   const id = Number(postId) || Number(box.dataset.postId) || 0;
-  box.hidden = false;
   box.dataset.postId = String(id);
+  box.hidden = true;
   box.innerHTML = guestCommentFormHtml(id, { sheet: false });
   bindGuestCommentForm(document.getElementById('pageCommentForm'));
   document.querySelectorAll('.c-reply-btn').forEach((el) => el.remove());
   bindCommentReactions(document.getElementById('commentList') || document);
 }
 
+function showCommentCompose() {
+  const box = document.getElementById('commentCompose');
+  if (!box) {
+    document.querySelector('.comment-section')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+    return;
+  }
+  const id = Number(box.dataset.postId) || 0;
+  if (!box.querySelector('#pageCommentForm')) {
+    box.innerHTML = guestCommentFormHtml(id, { sheet: false });
+    bindGuestCommentForm(document.getElementById('pageCommentForm'));
+  }
+  box.hidden = false;
+  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  requestAnimationFrame(() => {
+    const nick = document.getElementById('pageCommentNick');
+    const input = document.getElementById('pageCommentInput');
+    (nick?.value ? input : nick)?.focus();
+  });
+}
+
 if (typeof window !== 'undefined') {
   window.bindPostComments = bindPostComments;
+  window.showCommentCompose = showCommentCompose;
   window.commentItemHtml = commentItemHtml;
   window.updateCommentCounts = updateCommentCounts;
   window.guestCommentFormHtml = guestCommentFormHtml;

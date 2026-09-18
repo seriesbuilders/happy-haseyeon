@@ -273,6 +273,16 @@ function bindSheetCommentForm() {
 }
 
 async function openCommentSheet() {
+  const compose = document.getElementById('commentCompose');
+  if (compose) {
+    if (typeof showCommentCompose === 'function') {
+      showCommentCompose();
+      return;
+    }
+    compose.hidden = false;
+    compose.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
   const postId = currentPostIdForComment();
   if (!postId) {
     document.getElementById('commentList')?.scrollIntoView({

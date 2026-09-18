@@ -313,7 +313,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   <script src="/js/config.js"></script>
   <script src="/js/cafe-common.js?v=20260918-nomy"></script>
   <script src="/js/track-view.js"></script>
-  <script src="/js/post-comments.js?v=20260918-reactvote"></script>
+  <script src="/js/post-comments.js?v=20260918-cform1"></script>
   <script>
     loadCafeTabs('홈');
     bindCafeBottomNav();
