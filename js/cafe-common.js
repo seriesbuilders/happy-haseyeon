@@ -290,7 +290,6 @@ async function openCommentSheet() {
 }
 
 function cafeBottomNavHtml(active = '') {
-  const myHref = myPageOrLoginHref();
   const item = (key, href, icon, label, isBtn) => {
     const on = active === key ? ' active' : '';
     if (isBtn) {
@@ -304,7 +303,6 @@ function cafeBottomNavHtml(active = '') {
       ${item('topics', '#', '★', '주제', true)}
       ${item('comment', '#', '💬', '댓글', true)}
       ${item('news', '#', '♥', '소식', true)}
-      ${item('my', myHref, '👤', 'MY', false)}
     </nav>`;
 }
 
@@ -312,8 +310,8 @@ function bindCafeBottomNav() {
   const nav = document.getElementById('cafeBottomNav') || document.querySelector('.bottom-nav');
   if (!nav) return;
 
-  const my = nav.querySelector('[data-bn="my"]');
-  if (my && my.tagName === 'A') my.setAttribute('href', myPageOrLoginHref());
+  // 구버전 MY 탭 제거
+  nav.querySelectorAll('[data-bn="my"]').forEach((el) => el.remove());
 
   // 구버전 글쓰기 버튼을 댓글로 교체
   const writeBtn = nav.querySelector('[data-bn="write"]');

@@ -200,7 +200,6 @@ function ensurePostDrawerDom() {
         <button type="button" class="bn-item" data-bn="topics"><span class="ico">★</span>주제</button>
         <button type="button" class="bn-item" data-bn="comment"><span class="ico">💬</span>댓글</button>
         <button type="button" class="bn-item" data-bn="news"><span class="ico">♥</span>소식</button>
-        <a class="bn-item" href="/login" data-bn="my"><span class="ico">👤</span>MY</a>
       </nav>
     `;
 

@@ -288,7 +288,6 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
       <button type="button" class="bn-item" data-bn="topics"><span class="ico">★</span>주제</button>
       <button type="button" class="bn-item" data-bn="comment"><span class="ico">💬</span>댓글</button>
       <button type="button" class="bn-item" data-bn="news"><span class="ico">♥</span>소식</button>
-      <a class="bn-item" href="/login" data-bn="my"><span class="ico">👤</span>MY</a>
     </nav>
   </div>
 
@@ -312,7 +311,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   </div>
 
   <script src="/js/config.js"></script>
-  <script src="/js/cafe-common.js?v=20260918-cmt1"></script>
+  <script src="/js/cafe-common.js?v=20260918-nomy"></script>
   <script src="/js/track-view.js"></script>
   <script src="/js/post-comments.js?v=20260918-cmt1"></script>
   <script>
