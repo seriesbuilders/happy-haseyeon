@@ -730,6 +730,24 @@
   background: #fafbfc;
 }
 
+.comment-form-nick {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #dde1e6;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+}
+
+.comment-form-nick:focus {
+  outline: none;
+  border-color: #03c75a;
+  box-shadow: 0 0 0 3px rgba(3, 199, 90, 0.12);
+}
+
 .comment-form-user {
   display: flex;
   align-items: center;

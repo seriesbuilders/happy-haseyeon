@@ -115,15 +115,7 @@ export async function onRequestPost(context) {
     /* ignore */
   }
 
-  // 공개 페이지에서는 회원/비회원 모두 작성 불가 — 관리자만 댓글·대댓글 등록
   const admin = await requireAdmin(context.request, context.env);
-  if (!admin.ok) {
-    return json(
-      { error: '댓글은 관리자만 작성할 수 있습니다.', needAuth: true },
-      403
-    );
-  }
-
   const body = await context.request.json().catch(() => ({}));
   const postId = Number(body.post_id);
   if (!postId) return json({ error: 'post_id가 필요합니다.' }, 400);
@@ -141,22 +133,45 @@ export async function onRequestPost(context) {
     .first();
   if (!post) return json({ error: '글을 찾을 수 없습니다.' }, 404);
 
-  const parentResolved = await resolveParentId(
-    context.env,
-    postId,
-    body.parent_id
-  );
-  if (parentResolved?.error) {
-    return json({ error: parentResolved.error }, 400);
-  }
-  const parent_id = parentResolved?.parent_id ?? null;
+  let author;
+  let created_at;
+  let likes;
+  let dislikes;
+  let sort_order;
+  let profile_image;
+  let parent_id = null;
 
-  const author = String(body.author || '').trim() || '관리자';
-  const created_at = body.created_at || '';
-  const likes = Number(body.likes) || 0;
-  const dislikes = Number(body.dislikes) || 0;
-  const sort_order = Number(body.sort_order) || 0;
-  const profile_image = String(body.profile_image || '').trim();
+  if (admin.ok) {
+    const parentResolved = await resolveParentId(
+      context.env,
+      postId,
+      body.parent_id
+    );
+    if (parentResolved?.error) {
+      return json({ error: parentResolved.error }, 400);
+    }
+    parent_id = parentResolved?.parent_id ?? null;
+    author = String(body.author || '').trim() || '관리자';
+    created_at = body.created_at || '방금 전';
+    likes = Number(body.likes) || 0;
+    dislikes = Number(body.dislikes) || 0;
+    sort_order = Number(body.sort_order) || 0;
+    profile_image = String(body.profile_image || '').trim();
+  } else {
+    // 공개: 닉네임 + 내용만으로 바로 작성 (회원가입 불필요)
+    author = String(body.author || body.nickname || '').trim();
+    if (!author) {
+      return json({ error: '닉네임을 입력하세요.' }, 400);
+    }
+    if (author.length > 40) {
+      return json({ error: '닉네임은 40자 이하로 입력해 주세요.' }, 400);
+    }
+    created_at = '방금 전';
+    likes = 0;
+    dislikes = 0;
+    sort_order = 0;
+    profile_image = '';
+  }
 
   const result = await insertComment(context.env, {
     postId,

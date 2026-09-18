@@ -82,35 +82,14 @@ export async function onRequestPost(context) {
   }
 
   if (action === 'signup') {
-    if (!nickname) {
-      return json({ error: '닉네임을 입력하세요.' }, 400);
-    }
-    const exists = await context.env.DB.prepare(
-      'SELECT id FROM members WHERE username = ? LIMIT 1'
-    )
-      .bind(username)
-      .first();
-    if (exists) {
-      return json({ error: '이미 사용 중인 아이디입니다.' }, 409);
-    }
-    const token = randomToken();
-    const result = await context.env.DB.prepare(
-      `INSERT INTO members (username, password, nickname, profile_image, token)
-       VALUES (?, ?, ?, '', ?)`
-    )
-      .bind(username, password, nickname, token)
-      .run();
-
-    return json({
-      ok: true,
-      token,
-      member: {
-        id: result.meta.last_row_id,
-        username,
-        nickname,
-        profile_image: '',
+    // 가입 유입 차단: 페이지는 유지하되 DB에는 저장하지 않음
+    return json(
+      {
+        error:
+          '현재 카페 가입이 일시적으로 제한되어 있습니다. 댓글은 로그인 없이 닉네임으로 작성할 수 있습니다.',
       },
-    });
+      403
+    );
   }
 
   // login

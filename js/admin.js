@@ -3836,7 +3836,7 @@ function buildPreviewHtml(settings) {
   <base href="${cssBase}/" />
   <title>${escapeHtml(title)}</title>
   <link rel="stylesheet" href="${cssBase}/css/common.css?v=20260723-ogcard2" />
-  <link rel="stylesheet" href="${cssBase}/css/blog.css?v=20260918-react1" />
+  <link rel="stylesheet" href="${cssBase}/css/blog.css?v=20260918-cmt1" />
   <style>
     body { margin: 0; background: #fff; }
     .preview-badge {
