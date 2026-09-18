@@ -3936,6 +3936,19 @@ async function openPreviewModal() {
     previewSettingsCache = {};
   }
 
+  // 저장과 동일: 평문 URL → OG 카드 변환 후 미리보기
+  // (미리보기만 prepare하면 URL 텍스트로만 보임)
+  try {
+    showLoading('링크 카드를 준비하고 미리보는 중…', '미리보기');
+    await convertPlainLinksInEditor();
+    hardenLinkCardsInEditor();
+    scrubNaverSourceInEditor();
+  } catch (e) {
+    console.warn('preview link convert', e);
+  } finally {
+    closeUiModal(true);
+  }
+
   // 좁은 화면에서는 기본 모바일 풀모달
   if (window.matchMedia('(max-width: 768px)').matches) {
     previewDevice = 'mobile';
