@@ -430,6 +430,98 @@ function bindCafeBottomNav() {
   });
 }
 
+/** 본문 하단 ❤ / 댓글 / 공유 — 광고 심사 대응용 실제 클릭 동작 */
+function bindPostReactions(postId) {
+  const box = document.querySelector('.reaction');
+  if (!box || box.dataset.bound === '1') return;
+  box.dataset.bound = '1';
+
+  const id = Number(postId) || Number(box.dataset.postId) || 0;
+  const likeKey = id ? `post-liked:${id}` : '';
+  const likeBtn = box.querySelector('[data-reaction="like"]');
+  const commentBtn = box.querySelector('[data-reaction="comment"]');
+  const shareBtn = box.querySelector('[data-reaction="share"]');
+  const likeCountEl = likeBtn?.querySelector('.count');
+
+  const isLiked = () => {
+    if (!likeKey) return false;
+    try {
+      return localStorage.getItem(likeKey) === '1';
+    } catch {
+      return false;
+    }
+  };
+  const setLiked = (on) => {
+    if (!likeKey) return;
+    try {
+      if (on) localStorage.setItem(likeKey, '1');
+      else localStorage.removeItem(likeKey);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  if (likeBtn) {
+    if (isLiked()) likeBtn.classList.add('is-active');
+    likeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const on = !likeBtn.classList.contains('is-active');
+      likeBtn.classList.toggle('is-active', on);
+      setLiked(on);
+      if (likeCountEl) {
+        let n = parseInt(String(likeCountEl.textContent || '0').replace(/,/g, ''), 10) || 0;
+        n = Math.max(0, n + (on ? 1 : -1));
+        likeCountEl.textContent = n.toLocaleString();
+      }
+    });
+  }
+
+  if (commentBtn) {
+    commentBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (typeof openCommentSheet === 'function') openCommentSheet();
+      else {
+        document.querySelector('.comment-section')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      }
+    });
+  }
+
+  if (shareBtn) {
+    shareBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const url = location.href.split('#')[0];
+      const title = (document.querySelector('.post-title')?.textContent || '').trim() || document.title;
+      try {
+        if (navigator.share) {
+          await navigator.share({ title, url });
+          return;
+        }
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+      }
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(url);
+          shareBtn.classList.add('is-copied');
+          const prev = shareBtn.textContent;
+          shareBtn.textContent = '복사됨';
+          setTimeout(() => {
+            shareBtn.textContent = prev || '공유';
+            shareBtn.classList.remove('is-copied');
+          }, 1600);
+          return;
+        }
+      } catch {
+        /* fallback below */
+      }
+      window.prompt('아래 주소를 복사하세요', url);
+    });
+  }
+}
+
 function getMemberToken() {
   return localStorage.getItem(MEMBER_TOKEN_KEY) || '';
 }

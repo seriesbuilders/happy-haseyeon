@@ -609,11 +609,40 @@
 }
 
 .reaction .item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 14px;
   color: var(--text-sub);
+  background: transparent;
+  border: none;
+  padding: 6px 4px;
+  margin: 0;
+  font-family: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.reaction .item:hover,
+.reaction .item:focus-visible {
+  background: #f3f5f4;
+  outline: none;
+}
+
+.reaction .item:active {
+  transform: scale(0.97);
+}
+
+.reaction .item.is-active .heart,
+.reaction .item.is-active {
+  color: var(--heart);
+}
+
+.reaction .item.is-copied {
+  color: var(--naver, #03c75a);
+  font-weight: 600;
 }
 
 .reaction .heart {

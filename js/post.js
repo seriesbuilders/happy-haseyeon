@@ -177,10 +177,14 @@ function ensurePostDrawerDom() {
       }
       <article class="post-body">${post.body || ''}</article>
 
-      <div class="reaction">
-        <div class="item"><span class="heart">❤</span> <span class="count">${Number(post.likes).toLocaleString()}</span></div>
-        <div class="item">💬 <span class="count">${Number(commentDisplay).toLocaleString()}</span></div>
-        <div class="item">공유</div>
+      <div class="reaction" data-post-id="${post.id}">
+        <button type="button" class="item" data-reaction="like" aria-label="좋아요">
+          <span class="heart">❤</span> <span class="count">${Number(post.likes).toLocaleString()}</span>
+        </button>
+        <button type="button" class="item" data-reaction="comment" aria-label="댓글">
+          💬 <span class="count">${Number(commentDisplay).toLocaleString()}</span>
+        </button>
+        <button type="button" class="item" data-reaction="share" aria-label="공유">공유</button>
       </div>
 
       <section class="comment-section"${post.category === '광고' ? ' data-ad="1"' : ''}>
@@ -207,6 +211,7 @@ function ensurePostDrawerDom() {
       bindMobileNav();
     }
     if (typeof bindCafeBottomNav === 'function') bindCafeBottomNav();
+    if (typeof bindPostReactions === 'function') bindPostReactions(post.id);
     if (typeof bindPostComments === 'function') {
       bindPostComments(post.id, { ad: post.category === '광고' });
     }

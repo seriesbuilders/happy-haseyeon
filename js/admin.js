@@ -3836,7 +3836,7 @@ function buildPreviewHtml(settings) {
   <base href="${cssBase}/" />
   <title>${escapeHtml(title)}</title>
   <link rel="stylesheet" href="${cssBase}/css/common.css?v=20260723-ogcard2" />
-  <link rel="stylesheet" href="${cssBase}/css/blog.css?v=20260918-ad-ui2" />
+  <link rel="stylesheet" href="${cssBase}/css/blog.css?v=20260918-react1" />
   <style>
     body { margin: 0; background: #fff; }
     .preview-badge {
@@ -3919,10 +3919,14 @@ function buildPreviewHtml(settings) {
     <hr class="post-title-divider" />
     ${coverHtml}
     <article class="post-body">${body}</article>
-    <div class="reaction">
-      <div class="item"><span class="heart">❤</span> <span class="count">${likes.toLocaleString()}</span></div>
-      <div class="item">💬 <span class="count">${comments.toLocaleString()}</span></div>
-      <div class="item">공유</div>
+    <div class="reaction" data-post-id="0">
+      <button type="button" class="item" data-reaction="like" aria-label="좋아요">
+        <span class="heart">❤</span> <span class="count">${likes.toLocaleString()}</span>
+      </button>
+      <button type="button" class="item" data-reaction="comment" aria-label="댓글">
+        💬 <span class="count">${comments.toLocaleString()}</span>
+      </button>
+      <button type="button" class="item" data-reaction="share" aria-label="공유">공유</button>
     </div>
     <section class="comment-section">
       <div class="head">댓글 <em>0</em></div>

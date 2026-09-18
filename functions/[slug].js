@@ -240,7 +240,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   ${pixelHead}
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="/css/main.css" />
-  <link rel="stylesheet" href="/css/blog.css?v=20260918-ad-ui2" />
+  <link rel="stylesheet" href="/css/blog.css?v=20260918-react1" />
 </head>
 <body>
   ${pixelBody}
@@ -265,10 +265,14 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
     }
     <article class="post-body">${post.body || ''}</article>
 
-    <div class="reaction">
-      <div class="item"><span class="heart">❤</span> <span class="count">${Number(post.likes).toLocaleString()}</span></div>
-      <div class="item">💬 <span class="count">${Number(commentDisplay).toLocaleString()}</span></div>
-      <div class="item">공유</div>
+    <div class="reaction" data-post-id="${Number(post.id)}">
+      <button type="button" class="item" data-reaction="like" aria-label="좋아요">
+        <span class="heart">❤</span> <span class="count">${Number(post.likes).toLocaleString()}</span>
+      </button>
+      <button type="button" class="item" data-reaction="comment" aria-label="댓글">
+        💬 <span class="count">${Number(commentDisplay).toLocaleString()}</span>
+      </button>
+      <button type="button" class="item" data-reaction="share" aria-label="공유">공유</button>
     </div>
 
     <section class="comment-section"${post.category === '광고' ? ' data-ad="1"' : ''}>
@@ -308,12 +312,13 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   </div>
 
   <script src="/js/config.js"></script>
-  <script src="/js/cafe-common.js"></script>
+  <script src="/js/cafe-common.js?v=20260918-react1"></script>
   <script src="/js/track-view.js"></script>
   <script src="/js/post-comments.js"></script>
   <script>
     loadCafeTabs('홈');
     bindCafeBottomNav();
+    bindPostReactions(${Number(post.id)});
     bindPostComments(${Number(post.id)}${isAd ? ', { ad: true }' : ''});
     trackPageView({ post_id: ${Number(post.id)} });
   </script>
