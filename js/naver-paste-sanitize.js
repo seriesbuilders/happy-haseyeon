@@ -204,8 +204,15 @@
       else removeEl(el);
     }
 
-    // 2) 우리 에디터 링크카드 중 blog.naver.com
+    // 2) 우리 에디터에서 만든 링크카드(data-lc)는 네이버여도 유지 (의도적 삽입)
+    //    붙여넣기 잔여 se-oglink 등만 위에서 정리
     for (const table of [...root.querySelectorAll('table.link-card, a.link-card')]) {
+      if (
+        table.getAttribute('data-lc') === '1' ||
+        table.closest?.('.link-card-block[data-lc="1"]')
+      ) {
+        continue;
+      }
       const url =
         table.getAttribute('data-url') ||
         table.querySelector?.('a[href]')?.getAttribute('href') ||
@@ -226,26 +233,22 @@
         line.querySelector('a[href]')?.getAttribute('href') || cleanText(line.textContent);
       const looksNaver =
         isNaverBlogUrl(href) || /blog\.naver\.com/i.test(line.innerHTML || '');
-      // 제품 링크(url-line)는 절대 지우지 않음 — 네이버만 제거
       if (looksNaver) removeEl(line);
     }
-    // 빈 link-card-block 잔여 제거
+    // 빈 link-card-block 잔여 — data-lc 카드는 복구용으로 유지
     for (const block of [...root.querySelectorAll('.link-card-block')]) {
+      if (block.getAttribute('data-lc') === '1') continue;
       const url = block.querySelector?.('[data-url]')?.getAttribute('data-url') || '';
       const domain =
         block.querySelector?.('[data-domain]')?.getAttribute('data-domain') || '';
-      if (
-        /blog\.naver\.com/i.test(`${url} ${domain} ${block.innerHTML || ''}`) ||
-        !block.querySelector('table.link-card, a.link-card')
-      ) {
-        if (/blog\.naver\.com/i.test(`${url} ${domain} ${block.innerHTML || ''}`)) {
-          removeEl(block);
-        }
+      if (/blog\.naver\.com/i.test(`${url} ${domain} ${block.innerHTML || ''}`)) {
+        removeEl(block);
       }
     }
 
-    // 3) <a href="blog.naver.com...">
+    // 3) <a href="blog.naver.com..."> — 링크카드 내부는 건드리지 않음
     for (const a of [...root.querySelectorAll('a[href]')]) {
+      if (a.closest?.('.link-card-block, table.link-card, a.link-card')) continue;
       const href = a.getAttribute('href') || '';
       if (!isNaverBlogUrl(href)) continue;
       const host = a.closest('p, div, li, td, span') || a;
@@ -267,25 +270,22 @@
       }
     }
 
-    // 4) 문단 전체가 네이버 블로그 URL
-    for (const el of [...root.querySelectorAll('p, div, li, span')]) {
-      if (!el.isConnected) continue;
-      if (el.querySelector?.('img, table, .link-card, .link-card-block')) continue;
-      const t = cleanText(el.textContent);
-      if (!t) continue;
-      if (isNaverBlogUrl(t) || (/^https?:\/\/\S+$/i.test(t) && isNaverBlogUrl(t))) {
-        removeEl(el);
-      }
-    }
+    // 4) 문단 전체가 네이버 블로그 URL만 → 링크카드로 승격할 수 있게 유지
+    //    (예전에는 삭제해서 카카오톡형 썸네일 카드가 안 만들어졌음)
 
-    // 5) 텍스트 노드 안 단독 URL 제거
+    // 5) 다른 문장 속에 섞인 네이버 URL만 제거 (단독 URL 문단은 유지)
     const textNodes = [];
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) textNodes.push(walker.currentNode);
     for (const node of textNodes) {
       if (!node.isConnected) continue;
+      if (node.parentElement?.closest?.('.link-card-block, table.link-card')) continue;
       const val = node.nodeValue || '';
       if (!/blog\.naver\.com/i.test(val)) continue;
+      const trimmed = cleanText(val);
+      if (isNaverBlogUrl(trimmed) || (/^https?:\/\/\S+$/i.test(trimmed) && isNaverBlogUrl(trimmed))) {
+        continue;
+      }
       const next = val.replace(NAVER_BLOG_URL_RE, '').replace(/[ \t]{2,}/g, ' ');
       if (!next.trim()) {
         const parent = node.parentElement;

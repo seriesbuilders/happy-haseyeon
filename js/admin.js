@@ -759,11 +759,7 @@ function ensureEditor() {
         extractSingleUrl(fromClean) ||
         extractSingleUrl(htmlRaw);
       if (urlOnly) {
-        // 네이버 블로그 URL만 붙여넣은 경우 카드 생성하지 않음
-        if (isNaverBlogUrl(urlOnly)) {
-          stopPasteEvent();
-          return false;
-        }
+        // 네이버 블로그 URL만 붙여넣어도 카카오톡과 같은 OG 카드로 삽입
         stopPasteEvent();
         editorPasteLock = true;
         setTimeout(() => {
@@ -2673,17 +2669,13 @@ async function convertPlainLinksInEditor() {
     scrubNaverSourceInEditor();
     ensureLinkCardUrlLines(wysiwyg);
 
-    // 1) 문단 전체가 URL인 경우 → <a> (네이버 블로그 URL은 삭제)
+    // 1) 문단 전체가 URL인 경우 → <a> (이후 카드로 승격, 네이버 포함)
     const blocks = [...wysiwyg.querySelectorAll('p, div, li')];
     for (const el of blocks) {
       if (el.closest('a, .link-card, .link-card-block, .link-card-url-line, .link-card-wrap, table.link-card')) continue;
       if (el.querySelector('a, img, .link-card, .link-card-block, .link-card-url-line, table.link-card')) continue;
       const url = extractSingleUrl(el.textContent || '');
       if (!url) continue;
-      if (isNaverBlogUrl(url)) {
-        el.remove();
-        continue;
-      }
       const a = document.createElement('a');
       a.href = url;
       a.textContent = url;
@@ -2710,18 +2702,6 @@ async function convertPlainLinksInEditor() {
     for (const node of textNodes) {
       const url = extractSingleUrl(node.textContent);
       if (!url) continue;
-      if (isNaverBlogUrl(url)) {
-        try {
-          const parent = node.parentElement;
-          node.remove();
-          if (parent && !(parent.textContent || '').trim() && !parent.querySelector?.('img,table,a')) {
-            parent.remove();
-          }
-        } catch {
-          /* ignore */
-        }
-        continue;
-      }
       const a = document.createElement('a');
       a.href = url;
       a.textContent = url;
@@ -2734,7 +2714,7 @@ async function convertPlainLinksInEditor() {
       }
     }
 
-    // 2) 일반 <a> → 링크 카드 (네이버 블로그는 카드 만들지 않고 삭제)
+    // 2) 일반 <a> → 링크 카드 (네이버 블로그도 카카오톡형 OG 카드)
     const anchors = [
       ...wysiwyg.querySelectorAll(
         'a[href]:not(.link-card):not(.link-card-url):not(.link-card-title):not(.link-card-desc):not(.link-card-domain):not([data-link-converting])'
@@ -2750,25 +2730,6 @@ async function convertPlainLinksInEditor() {
       const rawHref = a.getAttribute('href') || a.textContent || '';
       const url = extractSingleUrl(rawHref) || normalizeExternalUrl(rawHref);
       if (!url || !/^https?:\/\//i.test(url)) continue;
-
-      if (isNaverBlogUrl(url)) {
-        const host = a.closest('p, div, li') || a;
-        try {
-          const hostText = String(host.textContent || '')
-            .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-          if (host !== a && hostText.length < 400) host.remove();
-          else a.remove();
-        } catch {
-          try {
-            a.remove();
-          } catch {
-            /* ignore */
-          }
-        }
-        continue;
-      }
 
       a.setAttribute('data-link-converting', '1');
       let align = 'center';
