@@ -251,6 +251,44 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
+/** HTML 엔티티 디코드 (&#039; / &#39; / &amp; 등) — 링크카드 설명 깨짐 방지 */
+function decodeHtmlEntities(s) {
+  let out = String(s ?? '');
+  // 반복 디코드(이중 인코딩 대비)
+  for (let i = 0; i < 3; i++) {
+    const prev = out;
+    out = out
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&quot;/gi, '"')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&apos;/gi, "'")
+      .replace(/&#0*39;/g, "'")
+      .replace(/&#x0*27;/gi, "'")
+      .replace(/&#(\d+);/g, (_, n) => {
+        const code = Number(n);
+        if (!code || code > 0x10ffff) return _;
+        try {
+          return String.fromCodePoint(code);
+        } catch {
+          return _;
+        }
+      })
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => {
+        const code = parseInt(h, 16);
+        if (!code || code > 0x10ffff) return _;
+        try {
+          return String.fromCodePoint(code);
+        } catch {
+          return _;
+        }
+      })
+      .replace(/&amp;/gi, '&');
+    if (out === prev) break;
+  }
+  return out;
+}
+
 function setLockedCategory(category) {
   const cat = category || '후기';
   document.getElementById('lockedCategory').value = cat;
@@ -1976,11 +2014,11 @@ function isNaverBlogUrl(url) {
 function buildLinkCardHtml({ url, title, description, image, domain }, opts = {}) {
   // 상단 URL(중앙) + 세로 카드(중앙). 이미지는 td background로 꽉 채움(SunEditor img 분리 방지)
   const align = opts.align === 'left' ? 'left' : 'center';
-  const safeUrl = escapeHtml(url || '');
-  const safeTitle = escapeHtml(title || domain || url || '');
-  const safeDesc = escapeHtml(description || '');
-  const safeImage = escapeHtml(image || '');
-  const safeDomain = escapeHtml(domain || '');
+  const safeUrl = escapeHtml(decodeHtmlEntities(url || ''));
+  const safeTitle = escapeHtml(decodeHtmlEntities(title || domain || url || ''));
+  const safeDesc = escapeHtml(decodeHtmlEntities(description || ''));
+  const safeImage = escapeHtml(decodeHtmlEntities(image || ''));
+  const safeDomain = escapeHtml(decodeHtmlEntities(domain || ''));
   const tableMargin = align === 'left' ? 'margin:0 auto 0 0;' : 'margin:0 auto;';
 
   const mediaTd = image
@@ -2192,6 +2230,10 @@ function prepareLinkCardsHtml(html) {
         block?.getAttribute?.('data-domain') ||
         srcEl.querySelector?.('.link-card-domain')?.textContent ||
         '';
+      title = decodeHtmlEntities(title);
+      description = decodeHtmlEntities(description);
+      image = decodeHtmlEntities(image);
+      domain = decodeHtmlEntities(domain);
       const align =
         (srcEl.getAttribute?.('data-align') ||
           block?.getAttribute?.('data-align') ||

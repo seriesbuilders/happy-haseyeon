@@ -9,13 +9,39 @@ function escapeHtml(s) {
 }
 
 function decodeEntities(s) {
-  return String(s ?? '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/gi, "'");
+  let out = String(s ?? '');
+  for (let i = 0; i < 3; i++) {
+    const prev = out;
+    out = out
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&quot;/gi, '"')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&apos;/gi, "'")
+      .replace(/&#0*39;/g, "'")
+      .replace(/&#x0*27;/gi, "'")
+      .replace(/&#(\d+);/g, (_, n) => {
+        const code = Number(n);
+        if (!code || code > 0x10ffff) return _;
+        try {
+          return String.fromCodePoint(code);
+        } catch {
+          return _;
+        }
+      })
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => {
+        const code = parseInt(h, 16);
+        if (!code || code > 0x10ffff) return _;
+        try {
+          return String.fromCodePoint(code);
+        } catch {
+          return _;
+        }
+      })
+      .replace(/&amp;/gi, '&');
+    if (out === prev) break;
+  }
+  return out;
 }
 
 function faviconFor(hostname) {
@@ -38,11 +64,11 @@ function parseUrlMeta(rawHref) {
 }
 
 function buildLinkCardBlockHtml({ url, title, description, image, domain, align = 'center' }) {
-  const safeUrl = escapeHtml(url || '');
-  const safeTitle = escapeHtml(title || domain || url || '');
-  const safeDesc = escapeHtml(description || '');
-  const safeImage = escapeHtml(image || '');
-  const safeDomain = escapeHtml(domain || '');
+  const safeUrl = escapeHtml(decodeEntities(url || ''));
+  const safeTitle = escapeHtml(decodeEntities(title || domain || url || ''));
+  const safeDesc = escapeHtml(decodeEntities(description || ''));
+  const safeImage = escapeHtml(decodeEntities(image || ''));
+  const safeDomain = escapeHtml(decodeEntities(domain || ''));
   const tableMargin = align === 'left' ? 'margin:0 auto 0 0;' : 'margin:0 auto;';
 
   const mediaTd = image

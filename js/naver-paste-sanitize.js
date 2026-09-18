@@ -132,13 +132,10 @@
     for (const line of [...root.querySelectorAll('.link-card-url-line')]) {
       const href =
         line.querySelector('a[href]')?.getAttribute('href') || cleanText(line.textContent);
-      const next = line.nextElementSibling;
       const looksNaver =
         isNaverBlogUrl(href) || /blog\.naver\.com/i.test(line.innerHTML || '');
-      const orphanEmpty =
-        !cleanText(line.textContent) &&
-        (!next || next.classList?.contains('link-card-block') || !cleanText(next.textContent || ''));
-      if (looksNaver || orphanEmpty) removeEl(line);
+      // 제품 링크(url-line)는 절대 지우지 않음 — 네이버만 제거
+      if (looksNaver) removeEl(line);
     }
     // 빈 link-card-block 잔여 제거
     for (const block of [...root.querySelectorAll('.link-card-block')]) {

@@ -23,13 +23,39 @@ function pickMeta(html, prop) {
 }
 
 function decodeHtml(s) {
-  return String(s)
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/gi, "'");
+  let out = String(s ?? '');
+  for (let i = 0; i < 3; i++) {
+    const prev = out;
+    out = out
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&quot;/gi, '"')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&apos;/gi, "'")
+      .replace(/&#0*39;/g, "'")
+      .replace(/&#x0*27;/gi, "'")
+      .replace(/&#(\d+);/g, (_, n) => {
+        const code = Number(n);
+        if (!code || code > 0x10ffff) return _;
+        try {
+          return String.fromCodePoint(code);
+        } catch {
+          return _;
+        }
+      })
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => {
+        const code = parseInt(h, 16);
+        if (!code || code > 0x10ffff) return _;
+        try {
+          return String.fromCodePoint(code);
+        } catch {
+          return _;
+        }
+      })
+      .replace(/&amp;/gi, '&');
+    if (out === prev) break;
+  }
+  return out;
 }
 
 function absolutize(base, url) {
