@@ -1266,7 +1266,7 @@ function renderAdPostsTable(posts) {
     selectAll.indeterminate = false;
   }
   if (!posts?.length) {
-    tbody.innerHTML = '<tr><td colspan="6">등록된 광고 블로그가 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7">등록된 광고 블로그가 없습니다.</td></tr>';
     syncAdPostsBulkDeleteUi();
     return;
   }
@@ -1274,6 +1274,7 @@ function renderAdPostsTable(posts) {
     .map((p) => {
       const fullUrl = publicPostUrl(p.slug, { ad: true });
       const href = postHref(p.slug, { ad: true });
+      const commentCount = Number(p.comment_count ?? p.comment_count_display) || 0;
       return `
       <tr>
         <td class="td-check">
@@ -1281,6 +1282,7 @@ function renderAdPostsTable(posts) {
         </td>
         <td><button type="button" class="title-link" data-edit-ad="${p.id}">${escapeHtml(p.title)}</button></td>
         <td><a class="slug ad-full-url" href="${href}" target="_blank" rel="noopener">${escapeHtml(fullUrl)}</a></td>
+        <td>${commentCount.toLocaleString()}</td>
         <td>${Number(p.likes).toLocaleString()}</td>
         <td>${escapeHtml(p.published_at)}</td>
         <td>
@@ -1320,7 +1322,7 @@ async function loadAdPosts() {
       const tbody = document.getElementById('adPostsBody');
       if (tbody) {
         tbody.innerHTML =
-          '<tr><td colspan="6">광고 목록을 불러오지 못했습니다.</td></tr>';
+          '<tr><td colspan="7">광고 목록을 불러오지 못했습니다.</td></tr>';
       }
     }
   }
