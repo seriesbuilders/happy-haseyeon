@@ -511,6 +511,7 @@ function showPanel(name, category) {
   if (name === 'settings') loadSettings();
   if (name === 'comments') {
     commentsMode = 'normal';
+    fillCommentDateInputs();
     renderCommentPostList();
     if (selectedCommentPostId) loadComments();
   }
@@ -519,6 +520,7 @@ function showPanel(name, category) {
   }
   if (name === 'ad-comments') {
     commentsMode = 'ad';
+    fillCommentDateInputs();
     renderAdCommentPostList();
     if (selectedAdCommentPostId) loadAdComments();
   }
