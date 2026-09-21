@@ -184,7 +184,7 @@ function ensurePostDrawerDom() {
         <button type="button" class="item" data-reaction="comment" aria-label="댓글">
           💬 <span class="count">${Number(commentDisplay).toLocaleString()}</span>
         </button>
-        <button type="button" class="item" data-reaction="share" aria-label="공유">공유</button>
+        <button type="button" class="item" data-reaction="share" aria-label="공유">공유 <span class="count">${Number(post.share_count_display || 0).toLocaleString()}</span></button>
       </div>
 
       <section class="comment-section"${post.category === '광고' ? ' data-ad="1"' : ''}>

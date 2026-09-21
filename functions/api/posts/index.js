@@ -107,6 +107,24 @@ export async function onRequestGet(context) {
 async function insertPostRow(env, row) {
   const attempts = [
     {
+      sql: `INSERT INTO posts (slug, title, body, category, cover_image, seo_title, seo_description, ad_pixels, likes, comment_count_display, share_count_display, published_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+      binds: [
+        row.slug,
+        row.title,
+        row.body,
+        row.category,
+        row.cover,
+        row.seo_title,
+        row.seo_description,
+        row.ad_pixels,
+        row.likes,
+        row.comment_count_display,
+        row.share_count_display,
+        row.published,
+      ],
+    },
+    {
       sql: `INSERT INTO posts (slug, title, body, category, cover_image, seo_title, seo_description, ad_pixels, likes, comment_count_display, published_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
       binds: [
@@ -244,6 +262,7 @@ export async function onRequestPost(context) {
     const cover = body.cover_image || '';
     const likes = Number(body.likes) || 0;
     const comment_count_display = Number(body.comment_count_display) || 0;
+    const share_count_display = Number(body.share_count_display) || 0;
     const published = body.published_at || '';
     const seo_title = String(body.seo_title || '').trim();
     const seo_description = String(body.seo_description || '').trim();
@@ -257,6 +276,7 @@ export async function onRequestPost(context) {
       cover,
       likes,
       comment_count_display,
+      share_count_display,
       published,
       seo_title,
       seo_description,

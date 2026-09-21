@@ -3162,6 +3162,8 @@ function clearEditForm(category) {
   document.getElementById('title').value = '';
   document.getElementById('likes').value = '0';
   document.getElementById('comment_count_display').value = '0';
+  const shareCountEl = document.getElementById('share_count_display');
+  if (shareCountEl) shareCountEl.value = '0';
   document.getElementById('published_at').value = '';
   document.getElementById('cover_image').value = '';
   const seoTitleEl = document.getElementById('seo_title');
@@ -3349,6 +3351,11 @@ async function editPost(id) {
   document.getElementById('likes').value = p.likes;
   document.getElementById('comment_count_display').value =
     p.comment_count_display != null ? p.comment_count_display : 0;
+  const shareCountEl = document.getElementById('share_count_display');
+  if (shareCountEl) {
+    shareCountEl.value =
+      p.share_count_display != null ? p.share_count_display : 0;
+  }
   document.getElementById('published_at').value = p.published_at;
   document.getElementById('cover_image').value = p.cover_image || '';
   const seoTitleEl = document.getElementById('seo_title');
@@ -3451,6 +3458,8 @@ async function savePost() {
       likes: Number(document.getElementById('likes').value) || 0,
       comment_count_display:
         Number(document.getElementById('comment_count_display').value) || 0,
+      share_count_display:
+        Number(document.getElementById('share_count_display')?.value) || 0,
       published_at: document.getElementById('published_at').value,
       seo_title: document.getElementById('seo_title')?.value.trim() || '',
       seo_description: document.getElementById('seo_description')?.value.trim() || '',
@@ -4000,6 +4009,7 @@ function buildPreviewHtml(settings) {
   const published = document.getElementById('published_at').value || '미리보기';
   const likes = Number(document.getElementById('likes').value) || 0;
   const comments = Number(document.getElementById('comment_count_display').value) || 0;
+  const shares = Number(document.getElementById('share_count_display')?.value) || 0;
   const cover = document.getElementById('cover_image').value.trim();
   const body = prepareLinkCardsHtml(getEditorHtml() || '<p></p>');
   const cssBase = location.origin;
@@ -4120,7 +4130,7 @@ function buildPreviewHtml(settings) {
       <button type="button" class="item" data-reaction="comment" aria-label="댓글">
         💬 <span class="count">${comments.toLocaleString()}</span>
       </button>
-      <button type="button" class="item" data-reaction="share" aria-label="공유">공유</button>
+      <button type="button" class="item" data-reaction="share" aria-label="공유">공유 <span class="count">${shares.toLocaleString()}</span></button>
     </div>
     <section class="comment-section">
       <div class="head">댓글 <em>0</em></div>

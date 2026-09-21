@@ -184,6 +184,10 @@ export async function ensurePostsColumns(env) {
     'ad_pixels',
     "ALTER TABLE posts ADD COLUMN ad_pixels TEXT DEFAULT ''"
   );
+  await addIfMissing(
+    'share_count_display',
+    'ALTER TABLE posts ADD COLUMN share_count_display INTEGER NOT NULL DEFAULT 0'
+  );
 }
 
 /** comments 테이블 컬럼 보강 */

@@ -234,6 +234,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   const commentDisplay =
     Number(post.comment_count_display) || Number(comments.length) || 0;
   const commentActual = comments.length;
+  const shareDisplay = Number(post.share_count_display) || 0;
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -277,7 +278,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
       <button type="button" class="item" data-reaction="comment" aria-label="댓글">
         💬 <span class="count">${Number(commentDisplay).toLocaleString()}</span>
       </button>
-      <button type="button" class="item" data-reaction="share" aria-label="공유">공유</button>
+      <button type="button" class="item" data-reaction="share" aria-label="공유">공유 <span class="count">${shareDisplay.toLocaleString()}</span></button>
     </div>
 
     <section class="comment-section"${post.category === '광고' ? ' data-ad="1"' : ''}>
