@@ -1929,9 +1929,16 @@ async function loadAdComments() {
 }
 
 function renderCommentItemsHtml(list, { ad = false } = {}) {
+  const sorted = [...(list || [])].sort((a, b) => {
+    const pinDiff = (Number(b.is_pinned) || 0) - (Number(a.is_pinned) || 0);
+    if (pinDiff) return pinDiff;
+    const likeDiff = (Number(b.likes) || 0) - (Number(a.likes) || 0);
+    if (likeDiff) return likeDiff;
+    return (Number(b.id) || 0) - (Number(a.id) || 0);
+  });
   const roots = [];
   const childrenMap = new Map();
-  for (const c of list || []) {
+  for (const c of sorted) {
     const pid = Number(c.parent_id) || 0;
     if (!pid) roots.push(c);
     else {
@@ -1940,9 +1947,9 @@ function renderCommentItemsHtml(list, { ad = false } = {}) {
     }
   }
   // parent가 목록에 없으면 루트로 취급
-  for (const c of list || []) {
+  for (const c of sorted) {
     const pid = Number(c.parent_id) || 0;
-    if (pid && !list.some((x) => Number(x.id) === pid) && !roots.includes(c)) {
+    if (pid && !sorted.some((x) => Number(x.id) === pid) && !roots.includes(c)) {
       roots.push(c);
     }
   }
@@ -1951,6 +1958,7 @@ function renderCommentItemsHtml(list, { ad = false } = {}) {
     const initial = escapeHtml((c.author || '?').charAt(0));
     const likes = Number(c.likes) || 0;
     const dislikes = Number(c.dislikes) || 0;
+    const pinned = Number(c.is_pinned) ? 1 : 0;
     const profile = c.profile_image || '';
     const avatarHtml = profile
       ? `<img class="cm-avatar cm-avatar--img" src="${escapeHtml(profile)}" alt="" />`
@@ -1959,14 +1967,19 @@ function renderCommentItemsHtml(list, { ad = false } = {}) {
     const replyBtn = isReply
       ? ''
       : `<button type="button" class="btn btn-ghost btn-sm" data-reply-c="${c.id}" data-reply-author="${escapeHtml(c.author || '')}">답글</button>`;
+    const pinBtn = isReply
+      ? ''
+      : `<button type="button" class="btn btn-ghost btn-sm${pinned ? ' is-pinned' : ''}" data-pin-c="${c.id}" data-pinned="${pinned}" title="${pinned ? '고정 해제' : '댓글 고정'}">${pinned ? '고정됨' : '고정'}</button>`;
+    const pinBadge = pinned && !isReply ? '<span class="cm-pin-badge">고정</span>' : '';
     return `
-    <article class="cm-item${isReply ? ' cm-item--reply' : ''}" data-id="${c.id}" data-ad-comment="${ad ? '1' : '0'}" data-parent-id="${Number(c.parent_id) || ''}">
+    <article class="cm-item${isReply ? ' cm-item--reply' : ''}${pinned && !isReply ? ' cm-item--pinned' : ''}" data-id="${c.id}" data-ad-comment="${ad ? '1' : '0'}" data-parent-id="${Number(c.parent_id) || ''}" data-is-pinned="${pinned}">
       <div class="cm-item-view">
         ${avatarHtml}
         <div class="cm-item-body">
           <div class="cm-item-meta">
             <strong>${escapeHtml(c.author)}</strong>
             <span>${escapeHtml(c.created_at || '')}</span>
+            ${pinBadge}
             ${isReply ? '<span class="cm-reply-badge">답글</span>' : ''}
           </div>
           <p class="cm-item-text">${escapeHtml(c.content)}</p>
@@ -1976,6 +1989,7 @@ function renderCommentItemsHtml(list, { ad = false } = {}) {
           </div>
         </div>
         <div class="cm-item-actions">
+          ${pinBtn}
           ${replyBtn}
           <button type="button" class="btn btn-ghost btn-sm" data-edit-c="${c.id}">수정</button>
           <button type="button" class="btn btn-danger btn-sm" data-del-c="${c.id}">삭제</button>
@@ -4492,6 +4506,25 @@ function bindAdminUI() {
       document
         .getElementById(ad ? 'adCommentComposer' : 'commentComposer')
         ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+
+    const pinEl = e.target.closest('[data-pin-c]');
+    if (pinEl) {
+      e.preventDefault();
+      const pinId = pinEl.dataset.pinC;
+      const nextPinned = Number(pinEl.dataset.pinned) ? 0 : 1;
+      try {
+        await adminFetch('/api/comments', {
+          method: 'PUT',
+          json: { id: Number(pinId), is_pinned: nextPinned },
+        });
+        toast(nextPinned ? '댓글을 고정했습니다.' : '고정을 해제했습니다.');
+        if (ad) loadAdComments();
+        else loadComments();
+      } catch (err) {
+        if (err.message !== 'unauthorized') toast(err.message, false);
+      }
       return;
     }
 

@@ -5,6 +5,8 @@ import {
   randomSlug,
   encryptedSlug,
   ensurePostsColumns,
+  ensureCommentsColumns,
+  sortCommentsForDisplay,
   AD_CATEGORY,
 } from '../../_utils.js';
 import { serializeAdPixels } from '../../_pixels.js';
@@ -24,6 +26,11 @@ export async function onRequestGet(context) {
   const slug = url.searchParams.get('slug');
 
   if (slug) {
+    try {
+      await ensureCommentsColumns(context.env);
+    } catch (_) {
+      /* ignore */
+    }
     const post = await context.env.DB.prepare(
       'SELECT * FROM posts WHERE slug = ? LIMIT 1'
     )
@@ -32,13 +39,16 @@ export async function onRequestGet(context) {
 
     if (!post) return json({ error: '글을 찾을 수 없습니다.' }, 404);
 
-    const { results: comments } = await context.env.DB.prepare(
-      'SELECT * FROM comments WHERE post_id = ? ORDER BY sort_order ASC, id ASC'
+    const { results: commentsRaw } = await context.env.DB.prepare(
+      'SELECT * FROM comments WHERE post_id = ?'
     )
       .bind(post.id)
       .all();
 
-    return json({ post, comments: comments || [] });
+    return json({
+      post,
+      comments: sortCommentsForDisplay(commentsRaw || []),
+    });
   }
 
   const category = url.searchParams.get('category');

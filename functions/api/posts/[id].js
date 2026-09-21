@@ -1,4 +1,4 @@
-import { json, options, requireAdmin, ensurePostsColumns } from '../../_utils.js';
+import { json, options, requireAdmin, ensurePostsColumns, ensureCommentsColumns, sortCommentsForDisplay } from '../../_utils.js';
 import { serializeAdPixels } from '../../_pixels.js';
 
 export async function onRequestOptions() {
@@ -7,19 +7,24 @@ export async function onRequestOptions() {
 
 export async function onRequestGet(context) {
   const id = context.params.id;
+  try {
+    await ensureCommentsColumns(context.env);
+  } catch (_) {
+    /* ignore */
+  }
   const post = await context.env.DB.prepare('SELECT * FROM posts WHERE id = ?')
     .bind(id)
     .first();
 
   if (!post) return json({ error: '글을 찾을 수 없습니다.' }, 404);
 
-  const { results: comments } = await context.env.DB.prepare(
-    'SELECT * FROM comments WHERE post_id = ? ORDER BY sort_order ASC, id ASC'
+  const { results: commentsRaw } = await context.env.DB.prepare(
+    'SELECT * FROM comments WHERE post_id = ?'
   )
     .bind(post.id)
     .all();
 
-  return json({ post, comments: comments || [] });
+  return json({ post, comments: sortCommentsForDisplay(commentsRaw || []) });
 }
 
 async function updatePostRow(env, id, body) {

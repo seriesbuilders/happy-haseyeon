@@ -1,4 +1,4 @@
-import { ensureSchema, getSettings } from './_utils.js';
+import { ensureSchema, getSettings, ensureCommentsColumns, sortCommentsForDisplay } from './_utils.js';
 import { postHeadTags } from './_seo.js';
 import { buildPixelHeadHtml, buildPixelBodyStartHtml, AD_COMMON_GTM_ID, buildGtmHeadHtml, buildGtmBodyHtml } from './_pixels.js';
 import { sanitizePostBodyHtml, enrichLinkCardPreviews } from './_body.js';
@@ -91,11 +91,17 @@ export async function onRequestGet(context) {
   }
 
   const settings = await getSettings(context.env);
-  const { results: comments } = await context.env.DB.prepare(
-    'SELECT * FROM comments WHERE post_id = ? ORDER BY sort_order ASC, id ASC'
+  try {
+    await ensureCommentsColumns(context.env);
+  } catch (_) {
+    /* ignore */
+  }
+  const { results: commentsRaw } = await context.env.DB.prepare(
+    'SELECT * FROM comments WHERE post_id = ?'
   )
     .bind(post.id)
     .all();
+  const comments = sortCommentsForDisplay(commentsRaw || []);
 
   let bodyHtml = sanitizePostBodyHtml(post.body || '');
   try {
@@ -187,18 +193,23 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
     const avatar = c.profile_image
       ? `<img class="c-avatar c-avatar--img" src="${escapeHtml(c.profile_image)}" alt="" />`
       : `<div class="c-avatar" style="background:${avatarColor(c.author)}">${escapeHtml(initial)}</div>`;
+    const pinBadge =
+      !isReply && Number(c.is_pinned)
+        ? '<span class="c-pin-badge">고정</span>'
+        : '';
     const replyList = isReply
       ? ''
       : `<div class="comment-replies">${replies
           .map((r) => renderCommentNode(r, [], true))
           .join('')}</div>`;
     return `
-      <div class="comment${isReply ? ' comment--reply' : ''}" data-comment-id="${c.id}">
+      <div class="comment${isReply ? ' comment--reply' : ''}${Number(c.is_pinned) && !isReply ? ' comment--pinned' : ''}" data-comment-id="${c.id}">
         ${avatar}
         <div class="c-body">
           <div>
             <span class="c-author">${escapeHtml(c.author)}</span>
             <span class="c-date">${escapeHtml(c.created_at)}</span>
+            ${pinBadge}
           </div>
           <div class="c-text">${escapeHtml(c.content)}</div>
           <div class="c-react" aria-label="추천 비추천" data-comment-id="${c.id}">
@@ -246,7 +257,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   ${pixelHead}
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="/css/main.css" />
-  <link rel="stylesheet" href="/css/blog.css?v=20260918-reactvote" />
+  <link rel="stylesheet" href="/css/blog.css?v=20260921-pin" />
 </head>
 <body>
   ${pixelBody}

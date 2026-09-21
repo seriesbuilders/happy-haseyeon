@@ -225,6 +225,21 @@ export async function ensureCommentsColumns(env) {
     'parent_id',
     'ALTER TABLE comments ADD COLUMN parent_id INTEGER'
   );
+  await addIfMissing(
+    'is_pinned',
+    'ALTER TABLE comments ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0'
+  );
+}
+
+/** 댓글 표시 정렬: 고정 → 추천수 → 최신(id) */
+export function sortCommentsForDisplay(list) {
+  return [...(list || [])].sort((a, b) => {
+    const pinDiff = (Number(b.is_pinned) || 0) - (Number(a.is_pinned) || 0);
+    if (pinDiff) return pinDiff;
+    const likeDiff = (Number(b.likes) || 0) - (Number(a.likes) || 0);
+    if (likeDiff) return likeDiff;
+    return (Number(b.id) || 0) - (Number(a.id) || 0);
+  });
 }
 
 /** 픽셀/태그 적용 기록 (관리자 공용 메모) */

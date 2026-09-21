@@ -39,6 +39,23 @@ async function insertComment(env, row) {
   const attempts = [
     {
       sql: `INSERT INTO comments (
+        post_id, author, content, likes, dislikes, created_at, sort_order, profile_image, parent_id, is_pinned
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      binds: [
+        row.postId,
+        row.author,
+        row.content,
+        row.likes,
+        row.dislikes,
+        row.created_at,
+        row.sort_order,
+        row.profile_image,
+        row.parent_id,
+        row.is_pinned || 0,
+      ],
+    },
+    {
+      sql: `INSERT INTO comments (
         post_id, author, content, likes, dislikes, created_at, sort_order, profile_image, parent_id
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       binds: [
@@ -140,6 +157,7 @@ export async function onRequestPost(context) {
   let sort_order;
   let profile_image;
   let parent_id = null;
+  let is_pinned = 0;
 
   if (admin.ok) {
     const parentResolved = await resolveParentId(
@@ -157,6 +175,8 @@ export async function onRequestPost(context) {
     dislikes = Number(body.dislikes) || 0;
     sort_order = Number(body.sort_order) || 0;
     profile_image = String(body.profile_image || '').trim();
+    // 답글은 고정하지 않음
+    is_pinned = parent_id ? 0 : Number(body.is_pinned) ? 1 : 0;
   } else {
     // 공개: 닉네임 + 내용만으로 바로 작성 (회원가입 불필요)
     author = String(body.author || body.nickname || '').trim();
@@ -171,6 +191,7 @@ export async function onRequestPost(context) {
     dislikes = 0;
     sort_order = 0;
     profile_image = '';
+    is_pinned = 0;
   }
 
   const result = await insertComment(context.env, {
@@ -183,6 +204,7 @@ export async function onRequestPost(context) {
     sort_order,
     profile_image,
     parent_id,
+    is_pinned,
   });
 
   const comment_count = await syncCommentCount(context.env, postId);
@@ -201,6 +223,7 @@ export async function onRequestPost(context) {
       sort_order,
       profile_image,
       parent_id,
+      is_pinned,
     },
   });
 }
@@ -228,7 +251,8 @@ export async function onRequestPut(context) {
         dislikes = COALESCE(?, dislikes),
         created_at = COALESCE(?, created_at),
         sort_order = COALESCE(?, sort_order),
-        profile_image = COALESCE(?, profile_image)
+        profile_image = COALESCE(?, profile_image),
+        is_pinned = COALESCE(?, is_pinned)
        WHERE id = ?`
     )
       .bind(
@@ -239,12 +263,36 @@ export async function onRequestPut(context) {
         body.created_at ?? null,
         body.sort_order !== undefined ? Number(body.sort_order) : null,
         body.profile_image !== undefined ? String(body.profile_image) : null,
+        body.is_pinned !== undefined ? (Number(body.is_pinned) ? 1 : 0) : null,
         id
       )
       .run();
   } catch (e) {
     const msg = String(e?.message || e);
-    if (/no such column:\s*profile_image/i.test(msg)) {
+    if (/no such column:\s*is_pinned/i.test(msg)) {
+      await context.env.DB.prepare(
+        `UPDATE comments SET
+          author = COALESCE(?, author),
+          content = COALESCE(?, content),
+          likes = COALESCE(?, likes),
+          dislikes = COALESCE(?, dislikes),
+          created_at = COALESCE(?, created_at),
+          sort_order = COALESCE(?, sort_order),
+          profile_image = COALESCE(?, profile_image)
+         WHERE id = ?`
+      )
+        .bind(
+          body.author ?? null,
+          body.content ?? null,
+          body.likes !== undefined ? Number(body.likes) : null,
+          body.dislikes !== undefined ? Number(body.dislikes) : null,
+          body.created_at ?? null,
+          body.sort_order !== undefined ? Number(body.sort_order) : null,
+          body.profile_image !== undefined ? String(body.profile_image) : null,
+          id
+        )
+        .run();
+    } else if (/no such column:\s*profile_image/i.test(msg)) {
       await context.env.DB.prepare(
         `UPDATE comments SET
           author = COALESCE(?, author),

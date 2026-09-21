@@ -89,18 +89,23 @@ function ensurePostDrawerDom() {
       const avatar = c.profile_image
         ? `<img class="c-avatar c-avatar--img" src="${escapeHtml(mediaUrl(c.profile_image))}" alt="" />`
         : `<div class="c-avatar" style="background:${avatarColor(c.author)}">${escapeHtml(initial)}</div>`;
+      const pinBadge =
+        !isReply && Number(c.is_pinned)
+          ? '<span class="c-pin-badge">고정</span>'
+          : '';
       const replyList = replies.length
         ? `<div class="comment-replies">${replies
             .map((r) => renderCommentNode(r, [], true))
             .join('')}</div>`
         : '<div class="comment-replies"></div>';
       return `
-        <div class="comment${isReply ? ' comment--reply' : ''}" data-comment-id="${c.id}">
+        <div class="comment${isReply ? ' comment--reply' : ''}${Number(c.is_pinned) && !isReply ? ' comment--pinned' : ''}" data-comment-id="${c.id}">
           ${avatar}
           <div class="c-body">
             <div>
               <span class="c-author">${escapeHtml(c.author)}</span>
               <span class="c-date">${escapeHtml(c.created_at)}</span>
+              ${pinBadge}
             </div>
             <div class="c-text">${escapeHtml(c.content)}</div>
             <div class="c-react" aria-label="추천 비추천" data-comment-id="${c.id}">
@@ -112,7 +117,13 @@ function ensurePostDrawerDom() {
         </div>`;
     }
 
-    const list = comments || [];
+    const list = [...(comments || [])].sort((a, b) => {
+      const pinDiff = (Number(b.is_pinned) || 0) - (Number(a.is_pinned) || 0);
+      if (pinDiff) return pinDiff;
+      const likeDiff = (Number(b.likes) || 0) - (Number(a.likes) || 0);
+      if (likeDiff) return likeDiff;
+      return (Number(b.id) || 0) - (Number(a.id) || 0);
+    });
     const roots = [];
     const childrenMap = new Map();
     for (const c of list) {
