@@ -3,6 +3,7 @@ import {
   options,
   requireAdmin,
   ensureCommentsColumns,
+  kstDateTimeDisplay,
 } from '../_utils.js';
 
 export async function onRequestOptions() {
@@ -170,7 +171,7 @@ export async function onRequestPost(context) {
     }
     parent_id = parentResolved?.parent_id ?? null;
     author = String(body.author || '').trim() || '관리자';
-    created_at = body.created_at || '방금 전';
+    created_at = String(body.created_at || '').trim() || kstDateTimeDisplay();
     likes = Number(body.likes) || 0;
     dislikes = Number(body.dislikes) || 0;
     sort_order = Number(body.sort_order) || 0;
@@ -186,7 +187,7 @@ export async function onRequestPost(context) {
     if (author.length > 40) {
       return json({ error: '닉네임은 40자 이하로 입력해 주세요.' }, 400);
     }
-    created_at = '방금 전';
+    created_at = kstDateTimeDisplay();
     likes = 0;
     dislikes = 0;
     sort_order = 0;

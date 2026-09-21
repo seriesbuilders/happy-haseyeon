@@ -18,6 +18,25 @@ const DEFAULT_TAGS = [
   { label: '레시피', sort_order: 7 },
 ];
 
+/** 댓글 날짜 표시 — Asia/Seoul YYYY.MM.DD HH:MM (24시간) */
+function formatCommentDateNow(d = new Date()) {
+  const t = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const y = t.getUTCFullYear();
+  const m = String(t.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(t.getUTCDate()).padStart(2, '0');
+  const h = String(t.getUTCHours()).padStart(2, '0');
+  const min = String(t.getUTCMinutes()).padStart(2, '0');
+  return `${y}.${m}.${day} ${h}:${min}`;
+}
+
+function fillCommentDateInputs() {
+  const now = formatCommentDateNow();
+  const cDate = document.getElementById('cDate');
+  const adCDate = document.getElementById('adCDate');
+  if (cDate) cDate.value = now;
+  if (adCDate) adCDate.value = now;
+}
+
 let suneditor = null;
 let allPostsCache = [];
 let allAdPostsCache = [];
@@ -2017,7 +2036,7 @@ function renderCommentItemsHtml(list, { ad = false } = {}) {
           </div>
           <div class="cm-field">
             <label>날짜 표시</label>
-            <input data-f="created_at" value="${escapeHtml(c.created_at || '')}" placeholder="예: 1일 전" />
+            <input data-f="created_at" value="${escapeHtml(c.created_at || '')}" placeholder="예: 2026.09.21 19:38" />
           </div>
           <div class="cm-field cm-field-likes">
             <label>추천</label>
@@ -2111,6 +2130,8 @@ function clearCommentComposer(prefix) {
   if (content) content.value = '';
   const profile = document.getElementById(`${prefix}ProfileImage`);
   if (profile) profile.value = '';
+  const dateEl = document.getElementById(`${prefix}Date`);
+  if (dateEl) dateEl.value = formatCommentDateNow();
   clearReplyTarget(prefix);
   updateComposerAvatarPreview(prefix);
   content?.focus();
@@ -2139,7 +2160,7 @@ async function addCommentQuick() {
         content,
         likes: Number(document.getElementById('cLikes').value) || 0,
         dislikes: Number(document.getElementById('cDislikes').value) || 0,
-        created_at: document.getElementById('cDate').value.trim() || '방금 전',
+        created_at: document.getElementById('cDate').value.trim() || formatCommentDateNow(),
         sort_order: Number(document.getElementById('cOrder').value) || 0,
         profile_image: document.getElementById('cProfileImage')?.value.trim() || '',
         parent_id,
@@ -2184,7 +2205,7 @@ async function addAdCommentQuick() {
         content,
         likes: Number(document.getElementById('adCLikes').value) || 0,
         dislikes: Number(document.getElementById('adCDislikes').value) || 0,
-        created_at: document.getElementById('adCDate').value.trim() || '방금 전',
+        created_at: document.getElementById('adCDate').value.trim() || formatCommentDateNow(),
         sort_order: Number(document.getElementById('adCOrder').value) || 0,
         profile_image: document.getElementById('adCProfileImage')?.value.trim() || '',
         parent_id,

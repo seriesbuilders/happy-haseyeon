@@ -46,6 +46,17 @@ export function kstDateString(d = new Date()) {
   return t.toISOString().slice(0, 10);
 }
 
+/** Asia/Seoul(UTC+9) 기준 YYYY.MM.DD HH:MM (24시간) — 댓글 표시용 */
+export function kstDateTimeDisplay(d = new Date()) {
+  const t = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const y = t.getUTCFullYear();
+  const m = String(t.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(t.getUTCDate()).padStart(2, '0');
+  const h = String(t.getUTCHours()).padStart(2, '0');
+  const min = String(t.getUTCMinutes()).padStart(2, '0');
+  return `${y}.${m}.${day} ${h}:${min}`;
+}
+
 /** 일별 조회수 테이블 보장 */
 export async function ensureViewsTables(env) {
   await env.DB.batch([
