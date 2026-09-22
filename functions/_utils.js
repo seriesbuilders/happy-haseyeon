@@ -240,6 +240,10 @@ export async function ensureCommentsColumns(env) {
     'is_pinned',
     'ALTER TABLE comments ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0'
   );
+  await addIfMissing(
+    'is_admin',
+    'ALTER TABLE comments ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0'
+  );
 }
 
 /** 댓글 표시 정렬: 고정 → 추천수 → 최신(id) */
@@ -346,6 +350,8 @@ export async function ensureSchema(env) {
         sort_order INTEGER NOT NULL DEFAULT 0,
         profile_image TEXT NOT NULL DEFAULT '',
         parent_id INTEGER,
+        is_pinned INTEGER NOT NULL DEFAULT 0,
+        is_admin INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
       )`),
     env.DB.prepare(`

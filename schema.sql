@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS comments (
   profile_image TEXT NOT NULL DEFAULT '',
   parent_id INTEGER,
   is_pinned INTEGER NOT NULL DEFAULT 0,
+  is_admin INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 

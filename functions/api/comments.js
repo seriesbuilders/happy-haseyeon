@@ -40,6 +40,24 @@ async function insertComment(env, row) {
   const attempts = [
     {
       sql: `INSERT INTO comments (
+        post_id, author, content, likes, dislikes, created_at, sort_order, profile_image, parent_id, is_pinned, is_admin
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      binds: [
+        row.postId,
+        row.author,
+        row.content,
+        row.likes,
+        row.dislikes,
+        row.created_at,
+        row.sort_order,
+        row.profile_image,
+        row.parent_id,
+        row.is_pinned || 0,
+        row.is_admin || 0,
+      ],
+    },
+    {
+      sql: `INSERT INTO comments (
         post_id, author, content, likes, dislikes, created_at, sort_order, profile_image, parent_id, is_pinned
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       binds: [
@@ -159,6 +177,7 @@ export async function onRequestPost(context) {
   let profile_image;
   let parent_id = null;
   let is_pinned = 0;
+  let is_admin = 0;
 
   if (admin.ok) {
     const parentResolved = await resolveParentId(
@@ -178,6 +197,7 @@ export async function onRequestPost(context) {
     profile_image = String(body.profile_image || '').trim();
     // 답글은 고정하지 않음
     is_pinned = parent_id ? 0 : Number(body.is_pinned) ? 1 : 0;
+    is_admin = 1;
   } else {
     // 공개: 닉네임 + 내용만으로 바로 작성 (회원가입 불필요)
     author = String(body.author || body.nickname || '').trim();
@@ -193,6 +213,7 @@ export async function onRequestPost(context) {
     sort_order = 0;
     profile_image = '';
     is_pinned = 0;
+    is_admin = 0;
   }
 
   const result = await insertComment(context.env, {
@@ -206,6 +227,7 @@ export async function onRequestPost(context) {
     profile_image,
     parent_id,
     is_pinned,
+    is_admin,
   });
 
   const comment_count = await syncCommentCount(context.env, postId);
@@ -225,6 +247,7 @@ export async function onRequestPost(context) {
       profile_image,
       parent_id,
       is_pinned,
+      is_admin,
     },
   });
 }
