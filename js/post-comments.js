@@ -13,6 +13,13 @@ function authReturnPath() {
   }
 }
 
+function goToLogin(message) {
+  const msg = message || '로그인이 필요합니다.';
+  alert(msg);
+  const next = encodeURIComponent(authReturnPath());
+  location.href = `/login?next=${next}`;
+}
+
 function commentGateHtml() {
   const next = encodeURIComponent(authReturnPath());
   return `
@@ -362,7 +369,7 @@ function bindOwnCommentActions(root) {
       if (!content) return;
       const token = typeof getMemberToken === 'function' ? getMemberToken() : '';
       if (!token) {
-        alert('로그인이 필요합니다.');
+        goToLogin('로그인이 필요합니다.');
         return;
       }
       saveBtn.disabled = true;
@@ -379,7 +386,7 @@ function bindOwnCommentActions(root) {
         const data = await res.json().catch(() => ({}));
         if (res.status === 401) {
           if (typeof clearMemberSession === 'function') clearMemberSession();
-          alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+          goToLogin('로그인이 만료되었습니다. 다시 로그인해 주세요.');
           return;
         }
         if (!res.ok) {
@@ -404,7 +411,7 @@ function bindOwnCommentActions(root) {
       if (!id || !confirm('이 댓글을 삭제할까요?')) return;
       const token = typeof getMemberToken === 'function' ? getMemberToken() : '';
       if (!token) {
-        alert('로그인이 필요합니다.');
+        goToLogin('로그인이 필요합니다.');
         return;
       }
       try {
@@ -419,7 +426,7 @@ function bindOwnCommentActions(root) {
         const data = await res.json().catch(() => ({}));
         if (res.status === 401) {
           if (typeof clearMemberSession === 'function') clearMemberSession();
-          alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+          goToLogin('로그인이 만료되었습니다. 다시 로그인해 주세요.');
           return;
         }
         if (!res.ok) {
