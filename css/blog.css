@@ -846,6 +846,11 @@ img.comment-form-avatar {
   border-bottom: 1px solid #f0f0f0;
 }
 
+.comment[hidden],
+.comment.is-page-hidden {
+  display: none !important;
+}
+
 .comment .c-avatar {
   width: 36px;
   height: 36px;

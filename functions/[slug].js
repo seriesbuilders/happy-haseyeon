@@ -262,7 +262,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   ${pixelHead}
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="/css/main.css" />
-  <link rel="stylesheet" href="/css/blog.css?v=20260922-page" />
+  <link rel="stylesheet" href="/css/blog.css?v=20260922-page2" />
 </head>
 <body>
   ${pixelBody}
@@ -334,9 +334,9 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   </div>
 
   <script src="/js/config.js"></script>
-  <script src="/js/cafe-common.js?v=20260922-page"></script>
+  <script src="/js/cafe-common.js?v=20260922-page2"></script>
   <script src="/js/track-view.js"></script>
-  <script src="/js/post-comments.js?v=20260922-page"></script>
+  <script src="/js/post-comments.js?v=20260922-page2"></script>
   <script>
     loadCafeTabs('홈');
     bindCafeBottomNav();

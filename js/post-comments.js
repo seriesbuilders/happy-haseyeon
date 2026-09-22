@@ -89,6 +89,19 @@ function updateCommentCounts(n) {
   if (reactionCount) reactionCount.textContent = Number(n).toLocaleString();
 }
 
+const COMMENT_PER_PAGE = 20;
+let commentPage = 1;
+
+function getRootComments(list) {
+  if (!list) return [];
+  return [...list.children].filter(
+    (el) =>
+      el.nodeType === 1 &&
+      el.classList.contains('comment') &&
+      !el.classList.contains('comment--reply')
+  );
+}
+
 function appendCommentToList(data) {
   if (!data?.comment || typeof commentItemHtml !== 'function') return;
   const list = document.getElementById('commentList');
@@ -98,16 +111,10 @@ function appendCommentToList(data) {
   if (data.comment_count != null) updateCommentCounts(data.comment_count);
   bindCommentReactions(list);
   revealOwnCommentActions(list);
-  // 새 댓글은 마지막 페이지에 보이도록
-  const roots = list.querySelectorAll(':scope > .comment');
-  const perPage = COMMENT_PER_PAGE;
-  const lastPage = Math.max(1, Math.ceil(roots.length / perPage));
-  commentPage = lastPage;
+  const roots = getRootComments(list);
+  commentPage = Math.max(1, Math.ceil(roots.length / COMMENT_PER_PAGE));
   applyCommentPagination();
 }
-
-const COMMENT_PER_PAGE = 20;
-let commentPage = 1;
 
 function buildCommentPagerHtml(page, totalPages) {
   if (totalPages <= 1) return '';
@@ -136,14 +143,16 @@ function applyCommentPagination() {
   const list = document.getElementById('commentList');
   const pager = document.getElementById('commentPager');
   if (!list) return;
-  const roots = [...list.querySelectorAll(':scope > .comment')];
+  const roots = getRootComments(list);
   const totalPages = Math.max(1, Math.ceil(roots.length / COMMENT_PER_PAGE) || 1);
   if (commentPage > totalPages) commentPage = totalPages;
   if (commentPage < 1) commentPage = 1;
   const start = (commentPage - 1) * COMMENT_PER_PAGE;
   const end = start + COMMENT_PER_PAGE;
   roots.forEach((el, idx) => {
-    el.hidden = idx < start || idx >= end;
+    const hide = idx < start || idx >= end;
+    el.classList.toggle('is-page-hidden', hide);
+    el.hidden = hide;
   });
   if (!pager) return;
   if (roots.length <= COMMENT_PER_PAGE) {
@@ -166,7 +175,7 @@ function bindCommentPagination() {
       if (page === commentPage) return;
       commentPage = page;
       applyCommentPagination();
-      document.getElementById('commentList')?.scrollIntoView({
+      document.querySelector('.comment-section')?.scrollIntoView({
         behavior: 'smooth',
         block: 'start',
       });
