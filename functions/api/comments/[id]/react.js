@@ -34,11 +34,14 @@ export async function onRequestPost(context) {
   const to = normalize(body.to);
 
   const row = await context.env.DB.prepare(
-    'SELECT id, likes, dislikes FROM comments WHERE id = ? LIMIT 1'
+    'SELECT id, likes, dislikes, status FROM comments WHERE id = ? LIMIT 1'
   )
     .bind(id)
     .first();
   if (!row) return json({ error: '댓글을 찾을 수 없습니다.' }, 404);
+  if (row.status && row.status !== 'active') {
+    return json({ error: '삭제된 댓글입니다.' }, 404);
+  }
 
   let likes = Number(row.likes) || 0;
   let dislikes = Number(row.dislikes) || 0;

@@ -40,7 +40,8 @@ export async function onRequestGet(context) {
     if (!post) return json({ error: '글을 찾을 수 없습니다.' }, 404);
 
     const { results: commentsRaw } = await context.env.DB.prepare(
-      'SELECT * FROM comments WHERE post_id = ?'
+      `SELECT * FROM comments WHERE post_id = ?
+         AND (status IS NULL OR status = '' OR status = 'active')`
     )
       .bind(post.id)
       .all();
@@ -62,7 +63,7 @@ export async function onRequestGet(context) {
 
   let sql = `SELECT
       p.id, p.slug, p.title, p.category, p.cover_image, p.likes,
-      COALESCE((SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id), 0) AS comment_count,
+      COALESCE((SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND (c.status IS NULL OR c.status = '' OR c.status = 'active')), 0) AS comment_count,
       p.comment_count_display, p.published_at, p.created_at
     FROM posts p`;
   const binds = [];

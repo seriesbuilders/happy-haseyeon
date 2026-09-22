@@ -5,14 +5,63 @@ function avatarColor(name) {
   return colors[h];
 }
 
+function authReturnPath() {
+  try {
+    return location.pathname + location.search;
+  } catch {
+    return '/';
+  }
+}
+
+function commentGateHtml() {
+  const next = encodeURIComponent(authReturnPath());
+  return `
+    <div class="comment-gate">
+      <p class="comment-gate-title">댓글은 회원만 작성할 수 있어요</p>
+      <p class="comment-gate-desc">카페 가입 또는 로그인 후 응원·후기·질문을 남겨 주세요.</p>
+      <div class="comment-gate-actions">
+        <a class="btn-comment-primary" href="/join?next=${next}">카페 가입하기</a>
+        <a class="btn-comment-ghost" href="/login?next=${next}">로그인</a>
+      </div>
+    </div>`;
+}
+
+function memberCommentFormHtml(postId, member, { sheet = false } = {}) {
+  const name = member.nickname || member.username || '회원';
+  const formId = sheet ? 'sheetCommentForm' : 'pageCommentForm';
+  const inputId = sheet ? 'sheetCommentInput' : 'pageCommentInput';
+  const lenId = sheet ? 'sheetCommentLen' : 'pageCommentLen';
+  const btnId = sheet ? 'sheetCommentSubmit' : 'pageCommentSubmit';
+  const msgId = sheet ? 'sheetCommentMsg' : 'pageCommentMsg';
+  const formClass = sheet ? 'cafe-sheet-comment-form' : 'comment-form';
+  const avatarHtml = member.profile_image
+    ? `<img class="comment-form-avatar comment-form-avatar--img" src="${escapeHtml(member.profile_image)}" alt="" />`
+    : `<span class="comment-form-avatar">${escapeHtml(name.charAt(0))}</span>`;
+  return `
+    <form class="${formClass}" id="${formId}" data-post-id="${postId}">
+      <div class="comment-form-user">
+        ${avatarHtml}
+        <strong>${escapeHtml(name)}</strong>
+        <span>으로 작성</span>
+      </div>
+      <textarea id="${inputId}" rows="4" maxlength="2000" placeholder="응원·후기·질문을 남겨 주세요" required></textarea>
+      <div class="${sheet ? 'cafe-sheet-comment-actions' : 'comment-form-actions'}">
+        <span class="${sheet ? 'cafe-sheet-comment-count' : 'comment-form-count'}"><span id="${lenId}">0</span>/2000</span>
+        <button type="submit" class="${sheet ? 'cafe-sheet-btn primary' : 'btn-comment-primary'}" id="${btnId}">등록</button>
+      </div>
+      <p class="${sheet ? 'cafe-sheet-comment-msg' : 'comment-form-msg'}" id="${msgId}" hidden></p>
+    </form>`;
+}
+
 function commentItemHtml(c, { isReply = false } = {}) {
   const initial = (c.author || '?').charAt(0);
   const avatar = c.profile_image
     ? `<img class="c-avatar c-avatar--img" src="${escapeHtml(c.profile_image)}" alt="" />`
     : `<div class="c-avatar" style="background:${avatarColor(c.author)}">${escapeHtml(initial)}</div>`;
   const cid = Number(c.id) || 0;
+  const mid = Number(c.member_id) || '';
   return `
-    <div class="comment${isReply ? ' comment--reply' : ''}" data-comment-id="${cid || ''}">
+    <div class="comment${isReply ? ' comment--reply' : ''}" data-comment-id="${cid || ''}" data-member-id="${mid}" data-is-admin="${Number(c.is_admin) ? 1 : 0}">
       ${avatar}
       <div class="c-body">
         <div>
@@ -20,6 +69,10 @@ function commentItemHtml(c, { isReply = false } = {}) {
           <span class="c-date">${escapeHtml(c.created_at || '')}</span>
         </div>
         <div class="c-text">${escapeHtml(c.content)}</div>
+        <div class="c-owner-actions" hidden>
+          <button type="button" class="c-owner-btn" data-edit-own="${cid}">수정</button>
+          <button type="button" class="c-owner-btn c-owner-btn--danger" data-del-own="${cid}">삭제</button>
+        </div>
         <div class="c-react" aria-label="추천 비추천" data-comment-id="${cid}">
           <button type="button" class="c-react__item c-react__item--up" data-vote="up" aria-label="추천">추천 <em>${Number(c.likes || 0).toLocaleString()}</em></button>
           <button type="button" class="c-react__item c-react__item--down" data-vote="down" aria-label="비추천">비추천 <em>${Number(c.dislikes || 0).toLocaleString()}</em></button>
@@ -36,45 +89,6 @@ function updateCommentCounts(n) {
   if (reactionCount) reactionCount.textContent = Number(n).toLocaleString();
 }
 
-const GUEST_NICK_KEY = 'guest-comment-nick';
-
-function getGuestNickname() {
-  try {
-    return localStorage.getItem(GUEST_NICK_KEY) || '';
-  } catch {
-    return '';
-  }
-}
-
-function setGuestNickname(name) {
-  try {
-    if (name) localStorage.setItem(GUEST_NICK_KEY, name);
-  } catch {
-    /* ignore */
-  }
-}
-
-function guestCommentFormHtml(postId, { sheet = false } = {}) {
-  const nick = getGuestNickname();
-  const formId = sheet ? 'sheetCommentForm' : 'pageCommentForm';
-  const nickId = sheet ? 'sheetCommentNick' : 'pageCommentNick';
-  const inputId = sheet ? 'sheetCommentInput' : 'pageCommentInput';
-  const lenId = sheet ? 'sheetCommentLen' : 'pageCommentLen';
-  const btnId = sheet ? 'sheetCommentSubmit' : 'pageCommentSubmit';
-  const msgId = sheet ? 'sheetCommentMsg' : 'pageCommentMsg';
-  const formClass = sheet ? 'cafe-sheet-comment-form' : 'comment-form';
-  return `
-    <form class="${formClass}" id="${formId}" data-post-id="${postId}">
-      <input type="text" id="${nickId}" class="comment-form-nick" maxlength="40" placeholder="닉네임" value="${escapeHtml(nick)}" required autocomplete="nickname" />
-      <textarea id="${inputId}" rows="4" maxlength="2000" placeholder="응원·후기·질문을 남겨 주세요" required></textarea>
-      <div class="${sheet ? 'cafe-sheet-comment-actions' : 'comment-form-actions'}">
-        <span class="${sheet ? 'cafe-sheet-comment-count' : 'comment-form-count'}"><span id="${lenId}">0</span>/2000</span>
-        <button type="submit" class="${sheet ? 'cafe-sheet-btn primary' : 'btn-comment-primary'}" id="${btnId}">등록</button>
-      </div>
-      <p class="${sheet ? 'cafe-sheet-comment-msg' : 'comment-form-msg'}" id="${msgId}" hidden></p>
-    </form>`;
-}
-
 function appendCommentToList(data) {
   if (!data?.comment || typeof commentItemHtml !== 'function') return;
   const list = document.getElementById('commentList');
@@ -83,6 +97,7 @@ function appendCommentToList(data) {
   list.insertAdjacentHTML('beforeend', commentItemHtml(data.comment));
   if (data.comment_count != null) updateCommentCounts(data.comment_count);
   bindCommentReactions(list);
+  revealOwnCommentActions(list);
 }
 
 function getCommentVote(commentId) {
@@ -121,7 +136,6 @@ function readReactCount(btn) {
   return parseInt(String(btn?.querySelector('em')?.textContent || '0').replace(/,/g, ''), 10) || 0;
 }
 
-/** 댓글 추천·비추천 클릭 바인딩 */
 function bindCommentReactions(root) {
   const scope = root || document;
   scope.querySelectorAll('.c-react[data-comment-id]').forEach((box) => {
@@ -186,13 +200,158 @@ function bindCommentReactions(root) {
   });
 }
 
-function bindGuestCommentForm(form) {
+function revealOwnCommentActions(root) {
+  const member =
+    typeof getMemberInfo === 'function' ? getMemberInfo() : null;
+  const myId = Number(member?.id) || 0;
+  const scope = root || document;
+  scope.querySelectorAll('.comment[data-comment-id]').forEach((el) => {
+    const actions = el.querySelector(':scope > .c-body > .c-owner-actions');
+    if (!actions) return;
+    const mid = Number(el.dataset.memberId) || 0;
+    actions.hidden = !(myId && mid && myId === mid);
+  });
+}
+
+function bindOwnCommentActions(root) {
+  const scope = root || document;
+  const list = scope.querySelector?.('#commentList') || document.getElementById('commentList') || scope;
+  if (!list || list.dataset.ownerBound === '1') {
+    revealOwnCommentActions(list);
+    return;
+  }
+  list.dataset.ownerBound = '1';
+
+  list.addEventListener('click', async (e) => {
+    const editBtn = e.target.closest('[data-edit-own]');
+    const delBtn = e.target.closest('[data-del-own]');
+    const saveBtn = e.target.closest('[data-save-own]');
+    const cancelBtn = e.target.closest('[data-cancel-own]');
+
+    if (editBtn) {
+      const id = Number(editBtn.dataset.editOwn);
+      const item = list.querySelector(`.comment[data-comment-id="${id}"]`);
+      const textEl = item?.querySelector('.c-text');
+      if (!item || !textEl || item.dataset.editing === '1') return;
+      item.dataset.editing = '1';
+      const prev = textEl.textContent || '';
+      item.dataset.prevText = prev;
+      textEl.outerHTML = `
+        <div class="c-edit-box">
+          <textarea class="c-edit-input" maxlength="2000" rows="3">${escapeHtml(prev)}</textarea>
+          <div class="c-edit-actions">
+            <button type="button" class="c-owner-btn" data-cancel-own="${id}">취소</button>
+            <button type="button" class="c-owner-btn c-owner-btn--primary" data-save-own="${id}">저장</button>
+          </div>
+        </div>`;
+      return;
+    }
+
+    if (cancelBtn) {
+      const id = Number(cancelBtn.dataset.cancelOwn);
+      const item = list.querySelector(`.comment[data-comment-id="${id}"]`);
+      const box = item?.querySelector('.c-edit-box');
+      if (!item || !box) return;
+      const prev = item.dataset.prevText || '';
+      box.outerHTML = `<div class="c-text">${escapeHtml(prev)}</div>`;
+      item.dataset.editing = '0';
+      return;
+    }
+
+    if (saveBtn) {
+      const id = Number(saveBtn.dataset.saveOwn);
+      const item = list.querySelector(`.comment[data-comment-id="${id}"]`);
+      const input = item?.querySelector('.c-edit-input');
+      const content = (input?.value || '').trim();
+      if (!content) return;
+      const token = typeof getMemberToken === 'function' ? getMemberToken() : '';
+      if (!token) {
+        alert('로그인이 필요합니다.');
+        return;
+      }
+      saveBtn.disabled = true;
+      try {
+        const api = typeof apiUrl === 'function' ? apiUrl('/api/comments') : '/api/comments';
+        const res = await fetch(api, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Member-Token': token,
+          },
+          body: JSON.stringify({ id, content }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          if (typeof clearMemberSession === 'function') clearMemberSession();
+          alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+          return;
+        }
+        if (!res.ok) {
+          alert(data.error || '수정에 실패했습니다.');
+          return;
+        }
+        const box = item.querySelector('.c-edit-box');
+        if (box) {
+          box.outerHTML = `<div class="c-text">${escapeHtml(content)}</div>`;
+        }
+        item.dataset.editing = '0';
+      } catch {
+        alert('서버 연결에 실패했습니다.');
+      } finally {
+        saveBtn.disabled = false;
+      }
+      return;
+    }
+
+    if (delBtn) {
+      const id = Number(delBtn.dataset.delOwn);
+      if (!id || !confirm('이 댓글을 삭제할까요?')) return;
+      const token = typeof getMemberToken === 'function' ? getMemberToken() : '';
+      if (!token) {
+        alert('로그인이 필요합니다.');
+        return;
+      }
+      try {
+        const api =
+          typeof apiUrl === 'function'
+            ? apiUrl(`/api/comments?id=${id}`)
+            : `/api/comments?id=${id}`;
+        const res = await fetch(api, {
+          method: 'DELETE',
+          headers: { 'X-Member-Token': token },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          if (typeof clearMemberSession === 'function') clearMemberSession();
+          alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+          return;
+        }
+        if (!res.ok) {
+          alert(data.error || '삭제에 실패했습니다.');
+          return;
+        }
+        const item = list.querySelector(`.comment[data-comment-id="${id}"]`);
+        item?.remove();
+        if (data.comment_count != null) updateCommentCounts(data.comment_count);
+        if (!list.querySelector('.comment')) {
+          list.innerHTML =
+            '<div class="post-error comment-empty" style="padding:24px 0">등록된 댓글이 없습니다.</div>';
+        }
+      } catch {
+        alert('서버 연결에 실패했습니다.');
+      }
+    }
+  });
+
+  revealOwnCommentActions(list);
+}
+
+function bindMemberCommentForm(form) {
   if (!form || form.dataset.bound === '1') return;
   form.dataset.bound = '1';
 
   const postId = Number(form.dataset.postId);
   const isSheet = form.id === 'sheetCommentForm';
-  const nickEl = document.getElementById(isSheet ? 'sheetCommentNick' : 'pageCommentNick');
   const input = document.getElementById(isSheet ? 'sheetCommentInput' : 'pageCommentInput');
   const len = document.getElementById(isSheet ? 'sheetCommentLen' : 'pageCommentLen');
   const msg = document.getElementById(isSheet ? 'sheetCommentMsg' : 'pageCommentMsg');
@@ -206,9 +365,13 @@ function bindGuestCommentForm(form) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (submitting) return;
-    const author = (nickEl?.value || '').trim();
     const content = (input?.value || '').trim();
-    if (!author || !content || !postId) return;
+    if (!content || !postId) return;
+    const token = typeof getMemberToken === 'function' ? getMemberToken() : '';
+    if (!token) {
+      renderComposeForAuth(postId);
+      return;
+    }
 
     if (msg) msg.hidden = true;
     submitting = true;
@@ -221,10 +384,18 @@ function bindGuestCommentForm(form) {
       const api = typeof apiUrl === 'function' ? apiUrl('/api/comments') : '/api/comments';
       const res = await fetch(api, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ post_id: postId, author, content }),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Member-Token': token,
+        },
+        body: JSON.stringify({ post_id: postId, content }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        if (typeof clearMemberSession === 'function') clearMemberSession();
+        renderComposeForAuth(postId);
+        return;
+      }
       if (!res.ok) {
         if (msg) {
           msg.hidden = false;
@@ -234,7 +405,6 @@ function bindGuestCommentForm(form) {
         return;
       }
 
-      setGuestNickname(author);
       if (input) input.value = '';
       if (len) len.textContent = '0';
       appendCommentToList(data);
@@ -263,17 +433,35 @@ function bindGuestCommentForm(form) {
   });
 }
 
-/** 공개 페이지: 닉네임 + 내용 작성폼 (최초에는 숨김, 댓글 아이콘 클릭 시 표시) */
-function bindPostComments(postId, opts = {}) {
+function renderComposeForAuth(postId, { show = false } = {}) {
   const box = document.getElementById('commentCompose');
   if (!box) return;
   const id = Number(postId) || Number(box.dataset.postId) || 0;
   box.dataset.postId = String(id);
+  const member =
+    typeof getMemberInfo === 'function' && typeof getMemberToken === 'function' && getMemberToken()
+      ? getMemberInfo()
+      : null;
+
+  if (member) {
+    box.innerHTML = memberCommentFormHtml(id, member, { sheet: false });
+    bindMemberCommentForm(document.getElementById('pageCommentForm'));
+  } else {
+    box.innerHTML = commentGateHtml();
+  }
+  if (show) box.hidden = false;
+}
+
+/** 공개 페이지: 회원 로그인 시 작성, 아니면 가입/로그인 유도 */
+function bindPostComments(postId) {
+  const box = document.getElementById('commentCompose');
+  if (!box) return;
+  const id = Number(postId) || Number(box.dataset.postId) || 0;
   box.hidden = true;
-  box.innerHTML = guestCommentFormHtml(id, { sheet: false });
-  bindGuestCommentForm(document.getElementById('pageCommentForm'));
+  renderComposeForAuth(id);
   document.querySelectorAll('.c-reply-btn').forEach((el) => el.remove());
   bindCommentReactions(document.getElementById('commentList') || document);
+  bindOwnCommentActions(document.getElementById('commentList') || document);
 }
 
 function showCommentCompose() {
@@ -286,16 +474,10 @@ function showCommentCompose() {
     return;
   }
   const id = Number(box.dataset.postId) || 0;
-  if (!box.querySelector('#pageCommentForm')) {
-    box.innerHTML = guestCommentFormHtml(id, { sheet: false });
-    bindGuestCommentForm(document.getElementById('pageCommentForm'));
-  }
-  box.hidden = false;
+  renderComposeForAuth(id, { show: true });
   box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   requestAnimationFrame(() => {
-    const nick = document.getElementById('pageCommentNick');
-    const input = document.getElementById('pageCommentInput');
-    (nick?.value ? input : nick)?.focus();
+    document.getElementById('pageCommentInput')?.focus();
   });
 }
 
@@ -304,8 +486,10 @@ if (typeof window !== 'undefined') {
   window.showCommentCompose = showCommentCompose;
   window.commentItemHtml = commentItemHtml;
   window.updateCommentCounts = updateCommentCounts;
-  window.guestCommentFormHtml = guestCommentFormHtml;
-  window.bindGuestCommentForm = bindGuestCommentForm;
+  window.commentGateHtml = commentGateHtml;
+  window.memberCommentFormHtml = memberCommentFormHtml;
+  window.bindMemberCommentForm = bindMemberCommentForm;
   window.bindCommentReactions = bindCommentReactions;
-  window.getGuestNickname = getGuestNickname;
+  window.revealOwnCommentActions = revealOwnCommentActions;
+  window.renderComposeForAuth = renderComposeForAuth;
 }

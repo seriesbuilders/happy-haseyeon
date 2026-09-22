@@ -50,7 +50,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
       return;
     }
     setMemberSession(data.token, data.member);
-    location.href = '/';
+    const next = new URLSearchParams(location.search).get('next') || '/';
+    location.href = next.startsWith('/') ? next : '/';
   } catch {
     showMsg(msg, '서버 연결에 실패했습니다.');
   }

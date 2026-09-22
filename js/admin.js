@@ -1995,7 +1995,7 @@ function renderCommentItemsHtml(list, { ad = false } = {}) {
     const pinBadge = pinned && !isReply ? '<span class="cm-pin-badge">고정</span>' : '';
     const sourceBadge = isAdmin
       ? '<span class="cm-source-badge cm-source-badge--admin">관리자</span>'
-      : '<span class="cm-source-badge cm-source-badge--guest">방문자</span>';
+      : '<span class="cm-source-badge cm-source-badge--guest">회원</span>';
     return `
     <article class="cm-item${isReply ? ' cm-item--reply' : ''}${pinned && !isReply ? ' cm-item--pinned' : ''}" data-id="${c.id}" data-ad-comment="${ad ? '1' : '0'}" data-parent-id="${Number(c.parent_id) || ''}" data-is-pinned="${pinned}" data-is-admin="${isAdmin}">
       <div class="cm-item-view">

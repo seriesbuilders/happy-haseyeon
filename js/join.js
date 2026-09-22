@@ -21,7 +21,8 @@ document.getElementById('joinForm').addEventListener('submit', async (e) => {
       return;
     }
     setMemberSession(data.token, data.member);
-    location.href = '/';
+    const next = new URLSearchParams(location.search).get('next') || '/';
+    location.href = next.startsWith('/') ? next : '/';
   } catch {
     msg.textContent = '서버 연결에 실패했습니다.';
     msg.classList.add('show');

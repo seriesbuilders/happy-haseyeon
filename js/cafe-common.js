@@ -242,19 +242,42 @@ function currentPostTitleForComment() {
 }
 
 function commentGateHtml() {
-  return '';
+  const next = encodeURIComponent(
+    (typeof location !== 'undefined' ? location.pathname + location.search : '/') || '/'
+  );
+  return `
+    <div class="cafe-sheet-gate">
+      <p class="cafe-sheet-gate-title">댓글은 회원만 작성할 수 있어요</p>
+      <p class="cafe-sheet-gate-desc">카페 가입 또는 로그인 후 응원·후기·질문을 남겨 주세요.</p>
+      <div class="cafe-sheet-gate-actions">
+        <a class="cafe-sheet-btn primary" href="/join?next=${next}">카페 가입하기</a>
+        <a class="cafe-sheet-btn ghost" href="/login?next=${next}">로그인</a>
+      </div>
+    </div>`;
 }
 
-function commentFormHtml(postId, postTitle) {
+function commentFormHtml(postId, postTitle, member) {
   const titleLine = postTitle
     ? `<p class="cafe-sheet-target">대상 글: <strong>${escapeHtml(postTitle)}</strong></p>`
     : '';
-  const formHtml =
-    typeof guestCommentFormHtml === 'function'
-      ? guestCommentFormHtml(postId, { sheet: true })
-      : `
+  if (!member) {
+    return `${titleLine}${commentGateHtml()}`;
+  }
+  if (typeof memberCommentFormHtml === 'function') {
+    return `${titleLine}${memberCommentFormHtml(postId, member, { sheet: true })}`;
+  }
+  const name = member.nickname || member.username || '회원';
+  const avatarHtml = member.profile_image
+    ? `<img class="cafe-sheet-comment-avatar cafe-sheet-comment-avatar--img" src="${escapeHtml(member.profile_image)}" alt="" />`
+    : `<span class="cafe-sheet-comment-avatar">${escapeHtml(name.charAt(0))}</span>`;
+  return `
+    ${titleLine}
     <form class="cafe-sheet-comment-form" id="sheetCommentForm" data-post-id="${postId}">
-      <input type="text" id="sheetCommentNick" class="comment-form-nick" maxlength="40" placeholder="닉네임" required />
+      <div class="cafe-sheet-comment-user">
+        ${avatarHtml}
+        <strong>${escapeHtml(name)}</strong>
+        <span>으로 작성</span>
+      </div>
       <textarea id="sheetCommentInput" rows="4" maxlength="2000" placeholder="응원·후기·질문을 남겨 주세요" required></textarea>
       <div class="cafe-sheet-comment-actions">
         <span class="cafe-sheet-comment-count"><span id="sheetCommentLen">0</span>/2000</span>
@@ -262,13 +285,11 @@ function commentFormHtml(postId, postTitle) {
       </div>
       <p class="cafe-sheet-comment-msg" id="sheetCommentMsg" hidden></p>
     </form>`;
-  return `${titleLine}${formHtml}`;
 }
 
 function bindSheetCommentForm() {
-  if (typeof bindGuestCommentForm === 'function') {
-    bindGuestCommentForm(document.getElementById('sheetCommentForm'));
-    return;
+  if (typeof bindMemberCommentForm === 'function') {
+    bindMemberCommentForm(document.getElementById('sheetCommentForm'));
   }
 }
 
@@ -291,10 +312,13 @@ async function openCommentSheet() {
     });
     return;
   }
+  const member = getMemberToken() ? getMemberInfo() : null;
   openCafeSheet({
-    title: '댓글 작성',
-    desc: '닉네임과 내용을 입력하면 바로 등록됩니다.',
-    bodyHtml: commentFormHtml(postId, currentPostTitleForComment()),
+    title: member ? '댓글 작성' : '댓글 안내',
+    desc: member
+      ? '회원 닉네임으로 등록됩니다.'
+      : '가입 또는 로그인 후 댓글을 작성할 수 있습니다.',
+    bodyHtml: commentFormHtml(postId, currentPostTitleForComment(), member),
   });
   bindSheetCommentForm();
 }

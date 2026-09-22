@@ -158,8 +158,8 @@ export async function onRequestPost(context) {
     try {
       inserted = await context.env.DB.prepare(
         `INSERT INTO comments (
-          post_id, author, content, likes, dislikes, created_at, sort_order, profile_image, parent_id, is_pinned, is_admin
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          post_id, author, content, likes, dislikes, created_at, sort_order, profile_image, parent_id, is_pinned, is_admin, member_id, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
         .bind(
           newId,
@@ -172,12 +172,34 @@ export async function onRequestPost(context) {
           c.profile_image || '',
           mappedParent,
           mappedParent ? 0 : Number(c.is_pinned) ? 1 : 0,
-          Number(c.is_admin) ? 1 : 0
+          Number(c.is_admin) ? 1 : 0,
+          c.member_id != null ? Number(c.member_id) : null,
+          c.status === 'deleted' ? 'deleted' : 'active'
         )
         .run();
     } catch (e) {
       const msg = String(e?.message || e);
-      if (/no such column:\s*is_admin/i.test(msg)) {
+      if (/no such column:\s*(member_id|status)/i.test(msg)) {
+        inserted = await context.env.DB.prepare(
+          `INSERT INTO comments (
+            post_id, author, content, likes, dislikes, created_at, sort_order, profile_image, parent_id, is_pinned, is_admin
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+          .bind(
+            newId,
+            c.author || '',
+            c.content || '',
+            Number(c.likes) || 0,
+            Number(c.dislikes) || 0,
+            c.created_at || '',
+            Number(c.sort_order) || 0,
+            c.profile_image || '',
+            mappedParent,
+            mappedParent ? 0 : Number(c.is_pinned) ? 1 : 0,
+            Number(c.is_admin) ? 1 : 0
+          )
+          .run();
+      } else if (/no such column:\s*is_admin/i.test(msg)) {
         inserted = await context.env.DB.prepare(
           `INSERT INTO comments (
             post_id, author, content, likes, dislikes, created_at, sort_order, profile_image, parent_id, is_pinned

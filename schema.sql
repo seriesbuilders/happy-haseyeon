@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS comments (
   parent_id INTEGER,
   is_pinned INTEGER NOT NULL DEFAULT 0,
   is_admin INTEGER NOT NULL DEFAULT 0,
+  member_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'active',
   FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 

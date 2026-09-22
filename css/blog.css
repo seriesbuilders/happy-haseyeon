@@ -915,6 +915,58 @@ img.comment-form-avatar {
   color: #222;
 }
 
+.c-owner-actions {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+
+.c-owner-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: #888;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.c-owner-btn:hover {
+  color: #333;
+  text-decoration: underline;
+}
+
+.c-owner-btn--danger:hover {
+  color: #d32f2f;
+}
+
+.c-owner-btn--primary {
+  color: #03c75a;
+  font-weight: 700;
+}
+
+.c-edit-box {
+  margin-top: 6px;
+}
+
+.c-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font: inherit;
+  resize: vertical;
+}
+
+.c-edit-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
 .comment .c-like {
   margin-top: 6px;
   font-size: 12px;

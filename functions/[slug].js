@@ -97,7 +97,8 @@ export async function onRequestGet(context) {
     /* ignore */
   }
   const { results: commentsRaw } = await context.env.DB.prepare(
-    'SELECT * FROM comments WHERE post_id = ?'
+    `SELECT * FROM comments WHERE post_id = ?
+       AND (status IS NULL OR status = '' OR status = 'active')`
   )
     .bind(post.id)
     .all();
@@ -203,7 +204,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
           .map((r) => renderCommentNode(r, [], true))
           .join('')}</div>`;
     return `
-      <div class="comment${isReply ? ' comment--reply' : ''}${Number(c.is_pinned) && !isReply ? ' comment--pinned' : ''}" data-comment-id="${c.id}">
+      <div class="comment${isReply ? ' comment--reply' : ''}${Number(c.is_pinned) && !isReply ? ' comment--pinned' : ''}" data-comment-id="${c.id}" data-member-id="${Number(c.member_id) || ''}" data-is-admin="${Number(c.is_admin) ? 1 : 0}">
         ${avatar}
         <div class="c-body">
           <div>
@@ -212,6 +213,10 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
             ${pinBadge}
           </div>
           <div class="c-text">${escapeHtml(c.content)}</div>
+          <div class="c-owner-actions" hidden>
+            <button type="button" class="c-owner-btn" data-edit-own="${c.id}">수정</button>
+            <button type="button" class="c-owner-btn c-owner-btn--danger" data-del-own="${c.id}">삭제</button>
+          </div>
           <div class="c-react" aria-label="추천 비추천" data-comment-id="${c.id}">
             <button type="button" class="c-react__item c-react__item--up" data-vote="up" aria-label="추천">추천 <em>${Number(c.likes || 0).toLocaleString()}</em></button>
             <button type="button" class="c-react__item c-react__item--down" data-vote="down" aria-label="비추천">비추천 <em>${Number(c.dislikes || 0).toLocaleString()}</em></button>
@@ -257,7 +262,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   ${pixelHead}
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="/css/main.css" />
-  <link rel="stylesheet" href="/css/blog.css?v=20260921-pin" />
+  <link rel="stylesheet" href="/css/blog.css?v=20260922-mem" />
 </head>
 <body>
   ${pixelBody}
@@ -328,9 +333,9 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   </div>
 
   <script src="/js/config.js"></script>
-  <script src="/js/cafe-common.js?v=20260918-cform1"></script>
+  <script src="/js/cafe-common.js?v=20260922-mem"></script>
   <script src="/js/track-view.js"></script>
-  <script src="/js/post-comments.js?v=20260918-cform1"></script>
+  <script src="/js/post-comments.js?v=20260922-mem"></script>
   <script>
     loadCafeTabs('홈');
     bindCafeBottomNav();
