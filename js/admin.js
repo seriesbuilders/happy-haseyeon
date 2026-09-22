@@ -48,6 +48,8 @@ let commentsMode = 'normal'; // 'normal' | 'ad'
 let selectedAdStatsPostId = null;
 let selectedMainStatsPostId = null;
 let adStatsPostsCache = [];
+const AD_POSTS_PER_PAGE = 50;
+let adPostsPage = 1;
 let mainStatsPostsCache = [];
 
 function getPassword() {
@@ -1278,6 +1280,61 @@ function syncAdPostsBulkDeleteUi() {
   }
 }
 
+function filterAdPostsByUrl(posts, q) {
+  const raw = String(q || '').trim().toLowerCase();
+  if (!raw) return posts || [];
+  return (posts || []).filter((p) => {
+    const url = publicPostUrl(p.slug, { ad: true }).toLowerCase();
+    const slug = String(p.slug || '').toLowerCase();
+    const title = String(p.title || '').toLowerCase();
+    return url.includes(raw) || slug.includes(raw) || title.includes(raw);
+  });
+}
+
+function buildPagerHtml(page, totalPages) {
+  if (totalPages <= 1) return '';
+  const maxButtons = 10;
+  let start = Math.max(1, page - Math.floor(maxButtons / 2));
+  let end = Math.min(totalPages, start + maxButtons - 1);
+  start = Math.max(1, end - maxButtons + 1);
+  const buttons = [];
+  for (let i = start; i <= end; i++) {
+    buttons.push(
+      `<button type="button" class="admin-pager__btn${i === page ? ' is-active' : ''}" data-page="${i}">${i}</button>`
+    );
+  }
+  const prev =
+    page > 1
+      ? `<button type="button" class="admin-pager__btn" data-page="${page - 1}">‹</button>`
+      : '';
+  const next =
+    page < totalPages
+      ? `<button type="button" class="admin-pager__btn" data-page="${page + 1}">다음 ›</button>`
+      : '';
+  return `${prev}${buttons.join('')}${next}`;
+}
+
+function refreshAdPostsTable() {
+  const q = document.getElementById('adPostsUrlSearch')?.value || '';
+  const filtered = filterAdPostsByUrl(allAdPostsCache, q);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / AD_POSTS_PER_PAGE) || 1);
+  if (adPostsPage > totalPages) adPostsPage = totalPages;
+  if (adPostsPage < 1) adPostsPage = 1;
+  const start = (adPostsPage - 1) * AD_POSTS_PER_PAGE;
+  const slice = filtered.slice(start, start + AD_POSTS_PER_PAGE);
+  renderAdPostsTable(slice);
+
+  const pager = document.getElementById('adPostsPager');
+  if (!pager) return;
+  if (filtered.length <= AD_POSTS_PER_PAGE) {
+    pager.hidden = true;
+    pager.innerHTML = '';
+    return;
+  }
+  pager.hidden = false;
+  pager.innerHTML = buildPagerHtml(adPostsPage, totalPages);
+}
+
 function renderAdPostsTable(posts) {
   const tbody = document.getElementById('adPostsBody');
   if (!tbody) return;
@@ -1335,7 +1392,8 @@ async function loadAdPosts() {
       '/api/posts?category=' + encodeURIComponent(AD_CATEGORY)
     );
     allAdPostsCache = data.posts || [];
-    renderAdPostsTable(allAdPostsCache);
+    adPostsPage = 1;
+    refreshAdPostsTable();
     renderAdCommentPostList();
   } catch (e) {
     if (e.message !== 'unauthorized') {
@@ -1803,10 +1861,9 @@ function renderAdCommentPostList() {
     .toLowerCase();
   const list = allAdPostsCache.filter((p) => {
     if (!q) return true;
-    return (
-      String(p.title || '').toLowerCase().includes(q) ||
-      String(p.slug || '').toLowerCase().includes(q)
-    );
+    const url = publicPostUrl(p.slug, { ad: true }).toLowerCase();
+    const slug = String(p.slug || '').toLowerCase();
+    return url.includes(q) || slug.includes(q);
   });
 
   if (!list.length) {
@@ -4318,6 +4375,22 @@ function bindAdminUI() {
   };
 
   document.getElementById('btnRefreshAdPosts')?.addEventListener('click', () => loadAdPosts());
+  document.getElementById('adPostsUrlSearch')?.addEventListener('input', () => {
+    adPostsPage = 1;
+    refreshAdPostsTable();
+  });
+  document.getElementById('adPostsPager')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-page]');
+    if (!btn) return;
+    const page = Number(btn.dataset.page) || 1;
+    if (page === adPostsPage) return;
+    adPostsPage = page;
+    refreshAdPostsTable();
+    document.getElementById('panel-ad-posts')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  });
   document.getElementById('btnRefreshPixelMemory')?.addEventListener('click', () =>
     loadPixelMemory()
   );

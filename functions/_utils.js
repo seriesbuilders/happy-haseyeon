@@ -1,5 +1,3 @@
-import { MOUNJARO_POPULAR } from './_seed-mounjaro.js';
-
 export function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -562,34 +560,6 @@ export async function ensureSchema(env) {
          VALUES (?, '메이지뽕이''s', '3달째 먹고 있는데 9.4kg감량 했습니다.', 199, '2일 전', 3)`
       ).bind(postId),
     ]);
-  }
-
-  // 인기글 더미 (마운자로) — 없으면 추가 (실패해도 스키마 준비는 완료)
-  try {
-    const popularDummy = await env.DB.prepare(
-      'SELECT id FROM posts WHERE slug = ? LIMIT 1'
-    )
-      .bind(MOUNJARO_POPULAR.slug)
-      .first();
-    if (!popularDummy) {
-      await env.DB.prepare(
-        `INSERT INTO posts (slug, title, body, category, cover_image, likes, comment_count_display, published_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
-      )
-        .bind(
-          MOUNJARO_POPULAR.slug,
-          MOUNJARO_POPULAR.title,
-          MOUNJARO_POPULAR.body,
-          MOUNJARO_POPULAR.category,
-          MOUNJARO_POPULAR.cover_image,
-          MOUNJARO_POPULAR.likes,
-          MOUNJARO_POPULAR.comment_count_display,
-          MOUNJARO_POPULAR.published_at
-        )
-        .run();
-    }
-  } catch (e) {
-    console.error('mounjaro seed', e);
   }
 
   schemaReady = true;

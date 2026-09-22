@@ -967,6 +967,41 @@ img.comment-form-avatar {
   margin-top: 6px;
 }
 
+.comment-pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  margin: 20px 0 8px;
+  padding: 8px 0;
+}
+
+.comment-pager__btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fff;
+  color: #444;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.comment-pager__btn:hover {
+  border-color: #03c75a;
+  color: #03c75a;
+}
+
+.comment-pager__btn.is-active {
+  background: #03c75a;
+  border-color: #03c75a;
+  color: #fff;
+  font-weight: 700;
+}
+
 .comment .c-like {
   margin-top: 6px;
   font-size: 12px;

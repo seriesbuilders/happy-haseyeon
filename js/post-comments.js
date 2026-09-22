@@ -98,6 +98,82 @@ function appendCommentToList(data) {
   if (data.comment_count != null) updateCommentCounts(data.comment_count);
   bindCommentReactions(list);
   revealOwnCommentActions(list);
+  // 새 댓글은 마지막 페이지에 보이도록
+  const roots = list.querySelectorAll(':scope > .comment');
+  const perPage = COMMENT_PER_PAGE;
+  const lastPage = Math.max(1, Math.ceil(roots.length / perPage));
+  commentPage = lastPage;
+  applyCommentPagination();
+}
+
+const COMMENT_PER_PAGE = 20;
+let commentPage = 1;
+
+function buildCommentPagerHtml(page, totalPages) {
+  if (totalPages <= 1) return '';
+  const maxButtons = 10;
+  let start = Math.max(1, page - Math.floor(maxButtons / 2));
+  let end = Math.min(totalPages, start + maxButtons - 1);
+  start = Math.max(1, end - maxButtons + 1);
+  const buttons = [];
+  for (let i = start; i <= end; i++) {
+    buttons.push(
+      `<button type="button" class="comment-pager__btn${i === page ? ' is-active' : ''}" data-cpage="${i}">${i}</button>`
+    );
+  }
+  const prev =
+    page > 1
+      ? `<button type="button" class="comment-pager__btn" data-cpage="${page - 1}">‹</button>`
+      : '';
+  const next =
+    page < totalPages
+      ? `<button type="button" class="comment-pager__btn" data-cpage="${page + 1}">다음 ›</button>`
+      : '';
+  return `${prev}${buttons.join('')}${next}`;
+}
+
+function applyCommentPagination() {
+  const list = document.getElementById('commentList');
+  const pager = document.getElementById('commentPager');
+  if (!list) return;
+  const roots = [...list.querySelectorAll(':scope > .comment')];
+  const totalPages = Math.max(1, Math.ceil(roots.length / COMMENT_PER_PAGE) || 1);
+  if (commentPage > totalPages) commentPage = totalPages;
+  if (commentPage < 1) commentPage = 1;
+  const start = (commentPage - 1) * COMMENT_PER_PAGE;
+  const end = start + COMMENT_PER_PAGE;
+  roots.forEach((el, idx) => {
+    el.hidden = idx < start || idx >= end;
+  });
+  if (!pager) return;
+  if (roots.length <= COMMENT_PER_PAGE) {
+    pager.hidden = true;
+    pager.innerHTML = '';
+    return;
+  }
+  pager.hidden = false;
+  pager.innerHTML = buildCommentPagerHtml(commentPage, totalPages);
+}
+
+function bindCommentPagination() {
+  const pager = document.getElementById('commentPager');
+  if (pager && pager.dataset.bound !== '1') {
+    pager.dataset.bound = '1';
+    pager.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-cpage]');
+      if (!btn) return;
+      const page = Number(btn.dataset.cpage) || 1;
+      if (page === commentPage) return;
+      commentPage = page;
+      applyCommentPagination();
+      document.getElementById('commentList')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  }
+  commentPage = 1;
+  applyCommentPagination();
 }
 
 function getCommentVote(commentId) {
@@ -337,6 +413,7 @@ function bindOwnCommentActions(root) {
           list.innerHTML =
             '<div class="post-error comment-empty" style="padding:24px 0">등록된 댓글이 없습니다.</div>';
         }
+        applyCommentPagination();
       } catch {
         alert('서버 연결에 실패했습니다.');
       }
@@ -462,6 +539,7 @@ function bindPostComments(postId) {
   document.querySelectorAll('.c-reply-btn').forEach((el) => el.remove());
   bindCommentReactions(document.getElementById('commentList') || document);
   bindOwnCommentActions(document.getElementById('commentList') || document);
+  bindCommentPagination();
 }
 
 function showCommentCompose() {

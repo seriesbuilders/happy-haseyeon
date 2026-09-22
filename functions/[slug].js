@@ -262,7 +262,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   ${pixelHead}
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="/css/main.css" />
-  <link rel="stylesheet" href="/css/blog.css?v=20260922-mem" />
+  <link rel="stylesheet" href="/css/blog.css?v=20260922-page" />
 </head>
 <body>
   ${pixelBody}
@@ -303,6 +303,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
       <div id="commentList">
         ${commentHtml || `<div class="post-error comment-empty" style="padding:24px 0">등록된 댓글이 없습니다.</div>`}
       </div>
+      <div class="comment-pager" id="commentPager" hidden></div>
     </section>
 
     <nav class="bottom-nav" id="cafeBottomNav" aria-label="하단 메뉴">
@@ -333,9 +334,9 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   </div>
 
   <script src="/js/config.js"></script>
-  <script src="/js/cafe-common.js?v=20260922-mem"></script>
+  <script src="/js/cafe-common.js?v=20260922-page"></script>
   <script src="/js/track-view.js"></script>
-  <script src="/js/post-comments.js?v=20260922-mem"></script>
+  <script src="/js/post-comments.js?v=20260922-page"></script>
   <script>
     loadCafeTabs('홈');
     bindCafeBottomNav();

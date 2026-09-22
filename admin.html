@@ -7,7 +7,7 @@
   <title>관리자 — 행복하서연</title>
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/dist/css/suneditor.min.css" />
-  <link rel="stylesheet" href="/css/admin.css?v=20260922-mem" />
+  <link rel="stylesheet" href="/css/admin.css?v=20260922-page" />
 </head>
 <body class="admin-body">
   <div id="loginView" class="login-wrap">
@@ -464,6 +464,14 @@
             <button type="button" class="btn btn-primary" id="btnNewAdPost">광고 블로그 작성</button>
             <button type="button" class="btn btn-ghost" id="btnRefreshAdPosts">새로고침</button>
             <button type="button" class="btn btn-danger" id="btnBulkDeleteAdPosts" disabled>선택 삭제</button>
+            <input
+              type="search"
+              id="adPostsUrlSearch"
+              class="toolbar-search"
+              placeholder="URL 검색…"
+              autocomplete="off"
+              aria-label="광고 블로그 URL 검색"
+            />
           </div>
           <p class="form-hint" style="margin-bottom:12px">
             광고 블로그는 <strong>메인(index)에 노출되지 않습니다</strong>.
@@ -488,6 +496,7 @@
               <tbody id="adPostsBody"></tbody>
             </table>
           </div>
+          <div class="admin-pager" id="adPostsPager" hidden></div>
         </section>
 
         <section class="panel" id="panel-comments">
@@ -568,7 +577,7 @@
             <aside class="cm-posts">
               <div class="cm-posts-head">
                 <h2>광고 블로그</h2>
-                <input type="search" id="adCommentPostSearch" placeholder="제목·코드 검색…" autocomplete="off" />
+                <input type="search" id="adCommentPostSearch" placeholder="URL 검색…" autocomplete="off" />
               </div>
               <div class="cm-post-list" id="adCommentPostList">
                 <p class="cm-empty">광고 글을 불러오는 중…</p>
@@ -1121,6 +1130,6 @@
   <script src="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/src/lang/ko.js"></script>
   <script src="/js/config.js"></script>
   <script src="/js/naver-paste-sanitize.js?v=20260918-react1"></script>
-  <script src="/js/admin.js?v=20260922-mem"></script>
+  <script src="/js/admin.js?v=20260922-page"></script>
 </body>
 </html>
