@@ -1980,6 +1980,7 @@ function renderCommentItemsHtml(list, { ad = false } = {}) {
     const likes = Number(c.likes) || 0;
     const dislikes = Number(c.dislikes) || 0;
     const pinned = Number(c.is_pinned) ? 1 : 0;
+    const isAdmin = Number(c.is_admin) ? 1 : 0;
     const profile = c.profile_image || '';
     const avatarHtml = profile
       ? `<img class="cm-avatar cm-avatar--img" src="${escapeHtml(profile)}" alt="" />`
@@ -1992,13 +1993,17 @@ function renderCommentItemsHtml(list, { ad = false } = {}) {
       ? ''
       : `<button type="button" class="btn btn-ghost btn-sm${pinned ? ' is-pinned' : ''}" data-pin-c="${c.id}" data-pinned="${pinned}" title="${pinned ? '고정 해제' : '댓글 고정'}">${pinned ? '고정됨' : '고정'}</button>`;
     const pinBadge = pinned && !isReply ? '<span class="cm-pin-badge">고정</span>' : '';
+    const sourceBadge = isAdmin
+      ? '<span class="cm-source-badge cm-source-badge--admin">관리자</span>'
+      : '<span class="cm-source-badge cm-source-badge--guest">방문자</span>';
     return `
-    <article class="cm-item${isReply ? ' cm-item--reply' : ''}${pinned && !isReply ? ' cm-item--pinned' : ''}" data-id="${c.id}" data-ad-comment="${ad ? '1' : '0'}" data-parent-id="${Number(c.parent_id) || ''}" data-is-pinned="${pinned}">
+    <article class="cm-item${isReply ? ' cm-item--reply' : ''}${pinned && !isReply ? ' cm-item--pinned' : ''}" data-id="${c.id}" data-ad-comment="${ad ? '1' : '0'}" data-parent-id="${Number(c.parent_id) || ''}" data-is-pinned="${pinned}" data-is-admin="${isAdmin}">
       <div class="cm-item-view">
         ${avatarHtml}
         <div class="cm-item-body">
           <div class="cm-item-meta">
             <strong>${escapeHtml(c.author)}</strong>
+            ${sourceBadge}
             <span>${escapeHtml(c.created_at || '')}</span>
             ${pinBadge}
             ${isReply ? '<span class="cm-reply-badge">답글</span>' : ''}
