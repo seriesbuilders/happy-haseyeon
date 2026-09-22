@@ -1,4 +1,4 @@
-import { ensureSchema, getSettings, ensureCommentsColumns, sortCommentsForDisplay } from './_utils.js';
+import { ensureSchema, getSettings, ensureCommentsColumns, sortCommentsForDisplay, maskSecretComments } from './_utils.js';
 import { postHeadTags } from './_seo.js';
 import { buildPixelHeadHtml, buildPixelBodyStartHtml, AD_COMMON_GTM_ID, buildGtmHeadHtml, buildGtmBodyHtml } from './_pixels.js';
 import { sanitizePostBodyHtml, enrichLinkCardPreviews } from './_body.js';
@@ -102,7 +102,9 @@ export async function onRequestGet(context) {
   )
     .bind(post.id)
     .all();
-  const comments = sortCommentsForDisplay(commentsRaw || []);
+  const comments = sortCommentsForDisplay(
+    maskSecretComments(commentsRaw || [], { isAdmin: false })
+  );
 
   let bodyHtml = sanitizePostBodyHtml(post.body || '');
   try {
@@ -198,21 +200,26 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
       !isReply && Number(c.is_pinned)
         ? '<span class="c-pin-badge">고정</span>'
         : '';
+    const secretBadge = Number(c.is_secret)
+      ? '<span class="c-secret-badge">비밀</span>'
+      : '';
+    const textClass = c.content_hidden ? 'c-text c-text--secret' : 'c-text';
     const replyList = isReply
       ? ''
       : `<div class="comment-replies">${replies
           .map((r) => renderCommentNode(r, [], true))
           .join('')}</div>`;
     return `
-      <div class="comment${isReply ? ' comment--reply' : ''}${Number(c.is_pinned) && !isReply ? ' comment--pinned' : ''}" data-comment-id="${c.id}" data-member-id="${Number(c.member_id) || ''}" data-is-admin="${Number(c.is_admin) ? 1 : 0}">
+      <div class="comment${isReply ? ' comment--reply' : ''}${Number(c.is_pinned) && !isReply ? ' comment--pinned' : ''}${Number(c.is_secret) ? ' comment--secret' : ''}" data-comment-id="${c.id}" data-member-id="${Number(c.member_id) || ''}" data-is-admin="${Number(c.is_admin) ? 1 : 0}" data-is-secret="${Number(c.is_secret) ? 1 : 0}" data-content-hidden="${c.content_hidden ? 1 : 0}">
         ${avatar}
         <div class="c-body">
           <div>
             <span class="c-author">${escapeHtml(c.author)}</span>
             <span class="c-date">${escapeHtml(c.created_at)}</span>
+            ${secretBadge}
             ${pinBadge}
           </div>
-          <div class="c-text">${escapeHtml(c.content)}</div>
+          <div class="${textClass}">${escapeHtml(c.content)}</div>
           <div class="c-owner-actions" hidden>
             <button type="button" class="c-owner-btn" data-edit-own="${c.id}">수정</button>
             <button type="button" class="c-owner-btn c-owner-btn--danger" data-del-own="${c.id}">삭제</button>
@@ -262,7 +269,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   ${pixelHead}
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="/css/main.css" />
-  <link rel="stylesheet" href="/css/blog.css?v=20260922-page2" />
+  <link rel="stylesheet" href="/css/blog.css?v=20260922-secret" />
 </head>
 <body>
   ${pixelBody}
@@ -334,9 +341,9 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   </div>
 
   <script src="/js/config.js"></script>
-  <script src="/js/cafe-common.js?v=20260922-page2"></script>
+  <script src="/js/cafe-common.js?v=20260922-secret"></script>
   <script src="/js/track-view.js"></script>
-  <script src="/js/post-comments.js?v=20260922-page2"></script>
+  <script src="/js/post-comments.js?v=20260922-secret"></script>
   <script>
     loadCafeTabs('홈');
     bindCafeBottomNav();

@@ -250,9 +250,37 @@ export async function ensureCommentsColumns(env) {
     'status',
     "ALTER TABLE comments ADD COLUMN status TEXT NOT NULL DEFAULT 'active'"
   );
+  await addIfMissing(
+    'is_secret',
+    'ALTER TABLE comments ADD COLUMN is_secret INTEGER NOT NULL DEFAULT 0'
+  );
 }
 
-/** 댓글 표시 정렬: 고정 → 추천수 → 최신(id) */
+export const SECRET_COMMENT_PLACEHOLDER = '비밀 댓글입니다.';
+
+/** 공개 화면용: 비밀댓글 본문 마스킹 */
+export function maskSecretComments(list, { viewerMemberId = null, isAdmin = false } = {}) {
+  const rows = list || [];
+  if (isAdmin) return rows.map((c) => ({ ...c, content_hidden: false }));
+  const byId = new Map(rows.map((c) => [Number(c.id), c]));
+  const myId = Number(viewerMemberId) || 0;
+  return rows.map((c) => {
+    if (!Number(c.is_secret)) return { ...c, content_hidden: false };
+    if (myId && Number(c.member_id) === myId) {
+      return { ...c, content_hidden: false };
+    }
+    // 비밀 답글: 부모 댓글 작성 회원도 열람 가능
+    const parent = c.parent_id ? byId.get(Number(c.parent_id)) : null;
+    if (parent && myId && Number(parent.member_id) === myId) {
+      return { ...c, content_hidden: false };
+    }
+    return {
+      ...c,
+      content: SECRET_COMMENT_PLACEHOLDER,
+      content_hidden: true,
+    };
+  });
+}
 export function sortCommentsForDisplay(list) {
   return [...(list || [])].sort((a, b) => {
     const pinDiff = (Number(b.is_pinned) || 0) - (Number(a.is_pinned) || 0);
@@ -360,6 +388,7 @@ export async function ensureSchema(env) {
         is_admin INTEGER NOT NULL DEFAULT 0,
         member_id INTEGER,
         status TEXT NOT NULL DEFAULT 'active',
+        is_secret INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
       )`),
     env.DB.prepare(`

@@ -902,6 +902,49 @@ img.comment-form-avatar {
   vertical-align: middle;
 }
 
+.c-secret-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #eceff1;
+  color: #546e7a;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.c-text--secret {
+  color: #78909c;
+  font-style: italic;
+}
+
+.comment-secret-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+  padding: 6px 10px;
+  border: 1px solid #dde3ea;
+  border-radius: 8px;
+  background: #fff;
+  color: #607d8b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.comment-secret-btn.is-active {
+  border-color: #546e7a;
+  background: #eceff1;
+  color: #37474f;
+}
+
+.comment-secret-btn__ico {
+  font-size: 12px;
+}
+
 .comment--pinned {
   background: #fffaf3;
   border-radius: 10px;

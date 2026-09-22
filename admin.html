@@ -7,7 +7,7 @@
   <title>관리자 — 행복하서연</title>
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/dist/css/suneditor.min.css" />
-  <link rel="stylesheet" href="/css/admin.css?v=20260922-page" />
+  <link rel="stylesheet" href="/css/admin.css?v=20260922-secret" />
 </head>
 <body class="admin-body">
   <div id="loginView" class="login-wrap">
@@ -564,6 +564,10 @@
                 <textarea id="cContent" rows="2" placeholder="댓글 내용 입력 후 Enter 또는 등록 (Shift+Enter 줄바꿈)"></textarea>
                 <input type="hidden" id="cOrder" value="0" />
                 <div class="cm-composer-actions">
+                  <label class="cm-secret-toggle">
+                    <input type="checkbox" id="cIsSecret" />
+                    <span>비밀댓글</span>
+                  </label>
                   <span class="form-hint">프로필 사진은 선택사항 · 비우면 닉네임 이니셜 표시</span>
                   <button type="button" class="btn btn-primary" id="btnAddComment">등록</button>
                 </div>
@@ -637,6 +641,10 @@
                 <textarea id="adCContent" rows="2" placeholder="댓글 내용 입력 후 Enter 또는 등록 (Shift+Enter 줄바꿈)"></textarea>
                 <input type="hidden" id="adCOrder" value="0" />
                 <div class="cm-composer-actions">
+                  <label class="cm-secret-toggle">
+                    <input type="checkbox" id="adCIsSecret" />
+                    <span>비밀댓글</span>
+                  </label>
                   <span class="form-hint">프로필 사진은 선택사항 · 비우면 닉네임 이니셜 표시</span>
                   <button type="button" class="btn btn-primary" id="btnAddAdComment">등록</button>
                 </div>
@@ -1130,6 +1138,6 @@
   <script src="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/src/lang/ko.js"></script>
   <script src="/js/config.js"></script>
   <script src="/js/naver-paste-sanitize.js?v=20260918-react1"></script>
-  <script src="/js/admin.js?v=20260922-page"></script>
+  <script src="/js/admin.js?v=20260922-secret"></script>
 </body>
 </html>

@@ -2038,6 +2038,7 @@ function renderCommentItemsHtml(list, { ad = false } = {}) {
     const dislikes = Number(c.dislikes) || 0;
     const pinned = Number(c.is_pinned) ? 1 : 0;
     const isAdmin = Number(c.is_admin) ? 1 : 0;
+    const isSecret = Number(c.is_secret) ? 1 : 0;
     const profile = c.profile_image || '';
     const avatarHtml = profile
       ? `<img class="cm-avatar cm-avatar--img" src="${escapeHtml(profile)}" alt="" />`
@@ -2053,14 +2054,18 @@ function renderCommentItemsHtml(list, { ad = false } = {}) {
     const sourceBadge = isAdmin
       ? '<span class="cm-source-badge cm-source-badge--admin">관리자</span>'
       : '<span class="cm-source-badge cm-source-badge--guest">회원</span>';
+    const secretBadge = isSecret
+      ? '<span class="cm-secret-badge">비밀</span>'
+      : '';
     return `
-    <article class="cm-item${isReply ? ' cm-item--reply' : ''}${pinned && !isReply ? ' cm-item--pinned' : ''}" data-id="${c.id}" data-ad-comment="${ad ? '1' : '0'}" data-parent-id="${Number(c.parent_id) || ''}" data-is-pinned="${pinned}" data-is-admin="${isAdmin}">
+    <article class="cm-item${isReply ? ' cm-item--reply' : ''}${pinned && !isReply ? ' cm-item--pinned' : ''}${isSecret ? ' cm-item--secret' : ''}" data-id="${c.id}" data-ad-comment="${ad ? '1' : '0'}" data-parent-id="${Number(c.parent_id) || ''}" data-is-pinned="${pinned}" data-is-admin="${isAdmin}" data-is-secret="${isSecret}">
       <div class="cm-item-view">
         ${avatarHtml}
         <div class="cm-item-body">
           <div class="cm-item-meta">
             <strong>${escapeHtml(c.author)}</strong>
             ${sourceBadge}
+            ${secretBadge}
             <span>${escapeHtml(c.created_at || '')}</span>
             ${pinBadge}
             ${isReply ? '<span class="cm-reply-badge">답글</span>' : ''}
@@ -2196,6 +2201,8 @@ function clearCommentComposer(prefix) {
   if (profile) profile.value = '';
   const dateEl = document.getElementById(`${prefix}Date`);
   if (dateEl) dateEl.value = formatCommentDateNow();
+  const secretEl = document.getElementById(`${prefix}IsSecret`);
+  if (secretEl) secretEl.checked = false;
   clearReplyTarget(prefix);
   updateComposerAvatarPreview(prefix);
   content?.focus();
@@ -2228,6 +2235,7 @@ async function addCommentQuick() {
         sort_order: Number(document.getElementById('cOrder').value) || 0,
         profile_image: document.getElementById('cProfileImage')?.value.trim() || '',
         parent_id,
+        is_secret: document.getElementById('cIsSecret')?.checked ? 1 : 0,
       },
     });
     clearCommentComposer('c');
@@ -2273,6 +2281,7 @@ async function addAdCommentQuick() {
         sort_order: Number(document.getElementById('adCOrder').value) || 0,
         profile_image: document.getElementById('adCProfileImage')?.value.trim() || '',
         parent_id,
+        is_secret: document.getElementById('adCIsSecret')?.checked ? 1 : 0,
       },
     });
     clearCommentComposer('adC');

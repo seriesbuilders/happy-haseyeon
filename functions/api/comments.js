@@ -5,6 +5,8 @@ import {
   requireMember,
   ensureCommentsColumns,
   kstDateTimeDisplay,
+  maskSecretComments,
+  sortCommentsForDisplay,
 } from '../_utils.js';
 
 export async function onRequestOptions() {
@@ -48,6 +50,27 @@ async function resolveParentId(env, postId, rawParentId) {
 
 async function insertComment(env, row) {
   const attempts = [
+    {
+      sql: `INSERT INTO comments (
+        post_id, author, content, likes, dislikes, created_at, sort_order, profile_image, parent_id, is_pinned, is_admin, member_id, status, is_secret
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      binds: [
+        row.postId,
+        row.author,
+        row.content,
+        row.likes,
+        row.dislikes,
+        row.created_at,
+        row.sort_order,
+        row.profile_image,
+        row.parent_id,
+        row.is_pinned || 0,
+        row.is_admin || 0,
+        row.member_id ?? null,
+        row.status || 'active',
+        row.is_secret || 0,
+      ],
+    },
     {
       sql: `INSERT INTO comments (
         post_id, author, content, likes, dislikes, created_at, sort_order, profile_image, parent_id, is_pinned, is_admin, member_id, status
@@ -182,6 +205,7 @@ export async function onRequestPost(context) {
   let is_pinned = 0;
   let is_admin = 0;
   let member_id = null;
+  let is_secret = Number(body.is_secret) ? 1 : 0;
 
   if (admin.ok) {
     const parentResolved = await resolveParentId(
@@ -239,6 +263,7 @@ export async function onRequestPost(context) {
     is_admin,
     member_id,
     status: 'active',
+    is_secret,
   });
 
   const comment_count = await syncCommentCount(context.env, postId);
@@ -261,8 +286,44 @@ export async function onRequestPost(context) {
       is_admin,
       member_id,
       status: 'active',
+      is_secret,
+      content_hidden: false,
     },
   });
+}
+
+/** GET ?post_id= — 비밀댓글 열람용 (회원/관리자 권한 반영) */
+export async function onRequestGet(context) {
+  try {
+    await ensureCommentsColumns(context.env);
+  } catch (_) {
+    /* ignore */
+  }
+
+  const url = new URL(context.request.url);
+  const postId = Number(url.searchParams.get('post_id'));
+  if (!postId) return json({ error: 'post_id가 필요합니다.' }, 400);
+
+  const { results } = await context.env.DB.prepare(
+    `SELECT * FROM comments WHERE post_id = ?
+       AND (status IS NULL OR status = '' OR status = 'active')`
+  )
+    .bind(postId)
+    .all();
+
+  const admin = await requireAdmin(context.request, context.env);
+  let viewerMemberId = null;
+  if (!admin.ok) {
+    const memberAuth = await requireMember(context.request, context.env);
+    if (memberAuth.ok) viewerMemberId = memberAuth.member.id;
+  }
+
+  const comments = maskSecretComments(sortCommentsForDisplay(results || []), {
+    viewerMemberId,
+    isAdmin: !!admin.ok,
+  });
+
+  return json({ comments });
 }
 
 export async function onRequestPut(context) {

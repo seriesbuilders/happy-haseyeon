@@ -33,6 +33,7 @@ function memberCommentFormHtml(postId, member, { sheet = false } = {}) {
   const lenId = sheet ? 'sheetCommentLen' : 'pageCommentLen';
   const btnId = sheet ? 'sheetCommentSubmit' : 'pageCommentSubmit';
   const msgId = sheet ? 'sheetCommentMsg' : 'pageCommentMsg';
+  const secretId = sheet ? 'sheetSecretToggle' : 'pageSecretToggle';
   const formClass = sheet ? 'cafe-sheet-comment-form' : 'comment-form';
   const avatarHtml = member.profile_image
     ? `<img class="comment-form-avatar comment-form-avatar--img" src="${escapeHtml(member.profile_image)}" alt="" />`
@@ -46,6 +47,10 @@ function memberCommentFormHtml(postId, member, { sheet = false } = {}) {
       </div>
       <textarea id="${inputId}" rows="4" maxlength="2000" placeholder="응원·후기·질문을 남겨 주세요" required></textarea>
       <div class="${sheet ? 'cafe-sheet-comment-actions' : 'comment-form-actions'}">
+        <button type="button" class="comment-secret-btn" id="${secretId}" aria-pressed="false" title="비밀댓글">
+          <span class="comment-secret-btn__ico" aria-hidden="true">🔒</span>
+          비밀댓글
+        </button>
         <span class="${sheet ? 'cafe-sheet-comment-count' : 'comment-form-count'}"><span id="${lenId}">0</span>/2000</span>
         <button type="submit" class="${sheet ? 'cafe-sheet-btn primary' : 'btn-comment-primary'}" id="${btnId}">등록</button>
       </div>
@@ -60,15 +65,21 @@ function commentItemHtml(c, { isReply = false } = {}) {
     : `<div class="c-avatar" style="background:${avatarColor(c.author)}">${escapeHtml(initial)}</div>`;
   const cid = Number(c.id) || 0;
   const mid = Number(c.member_id) || '';
+  const isSecret = Number(c.is_secret) ? 1 : 0;
+  const hidden = c.content_hidden ? 1 : 0;
+  const text = c.content || '';
+  const textClass = hidden ? 'c-text c-text--secret' : 'c-text';
+  const secretBadge = isSecret ? '<span class="c-secret-badge">비밀</span>' : '';
   return `
-    <div class="comment${isReply ? ' comment--reply' : ''}" data-comment-id="${cid || ''}" data-member-id="${mid}" data-is-admin="${Number(c.is_admin) ? 1 : 0}">
+    <div class="comment${isReply ? ' comment--reply' : ''}${isSecret ? ' comment--secret' : ''}" data-comment-id="${cid || ''}" data-member-id="${mid}" data-is-admin="${Number(c.is_admin) ? 1 : 0}" data-is-secret="${isSecret}" data-content-hidden="${hidden}">
       ${avatar}
       <div class="c-body">
         <div>
           <span class="c-author">${escapeHtml(c.author)}</span>
           <span class="c-date">${escapeHtml(c.created_at || '')}</span>
+          ${secretBadge}
         </div>
-        <div class="c-text">${escapeHtml(c.content)}</div>
+        <div class="${textClass}">${escapeHtml(text)}</div>
         <div class="c-owner-actions" hidden>
           <button type="button" class="c-owner-btn" data-edit-own="${cid}">수정</button>
           <button type="button" class="c-owner-btn c-owner-btn--danger" data-del-own="${cid}">삭제</button>
@@ -442,7 +453,15 @@ function bindMemberCommentForm(form) {
   const len = document.getElementById(isSheet ? 'sheetCommentLen' : 'pageCommentLen');
   const msg = document.getElementById(isSheet ? 'sheetCommentMsg' : 'pageCommentMsg');
   const btn = document.getElementById(isSheet ? 'sheetCommentSubmit' : 'pageCommentSubmit');
+  const secretBtn = document.getElementById(isSheet ? 'sheetSecretToggle' : 'pageSecretToggle');
   let submitting = false;
+  let isSecret = false;
+
+  secretBtn?.addEventListener('click', () => {
+    isSecret = !isSecret;
+    secretBtn.classList.toggle('is-active', isSecret);
+    secretBtn.setAttribute('aria-pressed', isSecret ? 'true' : 'false');
+  });
 
   input?.addEventListener('input', () => {
     if (len) len.textContent = String(input.value.length);
@@ -474,7 +493,11 @@ function bindMemberCommentForm(form) {
           'Content-Type': 'application/json',
           'X-Member-Token': token,
         },
-        body: JSON.stringify({ post_id: postId, content }),
+        body: JSON.stringify({
+          post_id: postId,
+          content,
+          is_secret: isSecret ? 1 : 0,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
@@ -493,6 +516,9 @@ function bindMemberCommentForm(form) {
 
       if (input) input.value = '';
       if (len) len.textContent = '0';
+      isSecret = false;
+      secretBtn?.classList.remove('is-active');
+      secretBtn?.setAttribute('aria-pressed', 'false');
       appendCommentToList(data);
 
       if (msg) {
@@ -517,6 +543,34 @@ function bindMemberCommentForm(form) {
       }
     }
   });
+}
+
+async function revealSecretCommentsForViewer(postId) {
+  const token = typeof getMemberToken === 'function' ? getMemberToken() : '';
+  if (!token || !postId) return;
+  try {
+    const api =
+      typeof apiUrl === 'function'
+        ? apiUrl(`/api/comments?post_id=${postId}`)
+        : `/api/comments?post_id=${postId}`;
+    const res = await fetch(api, {
+      headers: { 'X-Member-Token': token },
+    });
+    if (!res.ok) return;
+    const data = await res.json().catch(() => ({}));
+    const list = data.comments || [];
+    for (const c of list) {
+      if (!Number(c.is_secret) || c.content_hidden) continue;
+      const el = document.querySelector(`.comment[data-comment-id="${c.id}"]`);
+      const text = el?.querySelector('.c-text');
+      if (!text) continue;
+      text.textContent = c.content || '';
+      text.classList.remove('c-text--secret');
+      el.dataset.contentHidden = '0';
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 function renderComposeForAuth(postId, { show = false } = {}) {
@@ -549,6 +603,7 @@ function bindPostComments(postId) {
   bindCommentReactions(document.getElementById('commentList') || document);
   bindOwnCommentActions(document.getElementById('commentList') || document);
   bindCommentPagination();
+  revealSecretCommentsForViewer(id);
 }
 
 function showCommentCompose() {

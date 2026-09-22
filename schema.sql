@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS comments (
   is_admin INTEGER NOT NULL DEFAULT 0,
   member_id INTEGER,
   status TEXT NOT NULL DEFAULT 'active',
+  is_secret INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 

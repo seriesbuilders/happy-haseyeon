@@ -1081,6 +1081,35 @@ img.cm-avatar {
   color: #616161;
 }
 
+.cm-secret-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #eceff1;
+  color: #455a64;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cm-secret-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: #546e7a;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cm-secret-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #455a64;
+}
+
 .cm-item--pinned > .cm-item-view {
   background: #fffaf3;
   border-radius: 10px;
