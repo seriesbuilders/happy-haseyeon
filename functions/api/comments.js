@@ -181,13 +181,13 @@ export async function onRequestPost(context) {
 //slack 용 추가
 async function sendSlackCommentNotice(env, { postId, postSlug, commentId, content, is_secret }) {
   const message =
-    `새 댓글이 등록됐어요.\n` +
-    `게시글 번호: ${postId}\n` +
-    `게시글 URL: ${publicPostUrl(postSlug)}\n` +
-    `댓글 번호: ${commentId}\n` +
+    `💬 새 댓글 알림\n` +
+    `• 📄 게시글 번호: ${postId}\n` +
+    `• 🔗 게시글 URL: ${publicPostUrl(postSlug)}\n` +
+    `• #️⃣ 댓글 번호: ${commentId}\n` +
     (is_secret
-      ? '비밀댓글입니다. 내용은 관리자 페이지에서 확인해 주세요.'
-      : `내용: ${content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}`);
+      ? '• 🔒 비밀댓글입니다. 내용은 관리자 페이지에서 확인해 주세요.'
+      : `• 📝 내용: ${content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}`);
 
   const botReady =
     env.slack_comments_bot_token &&
