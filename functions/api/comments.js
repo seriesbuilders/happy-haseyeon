@@ -223,6 +223,28 @@ async function sendSlackCommentNotice(env, { postId, postSlug, commentId, conten
     await env.DB.prepare(
       'INSERT INTO slack_comment_messages (channel, message_ts, comment_id, post_id) VALUES (?, ?, ?, ?)'
     ).bind(sent.channel, sent.ts, commentId, postId).run();
+     
+    //슬랙 반응 추가
+    const reactionResponse = await fetch('https://slack.com/api/reactions.add', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.slack_comments_bot_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: sent.channel,
+        timestamp: sent.ts,
+        name: 'wastebasket',
+      }),
+    });
+
+    const reaction = await reactionResponse.json();
+    if (!reactionResponse.ok || !reaction.ok) {
+      throw new Error(
+        `Slack 휴지통 반응 추가 실패: ${reaction.error || reactionResponse.status}`
+      );
+    }
+
     return;
   }
 

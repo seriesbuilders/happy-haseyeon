@@ -39,6 +39,24 @@ async function deleteReactedComment(env, event) {
     event.item.channel !== env.slack_comments_channel_id
   ) return;
 
+  // 봇이 🗑️을 미리 붙이면서 발생시킨 이벤트는 삭제하지 않는다.
+  if (!event.user || !env.slack_comments_bot_token) return;
+
+  const authResponse = await fetch('https://slack.com/api/auth.test', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.slack_comments_bot_token}`,
+    },
+  });
+  const auth = await authResponse.json();
+
+  if (!authResponse.ok || !auth.ok || !auth.user_id) {
+    throw new Error(
+      `Slack 봇 신원 확인 실패: ${auth.error || authResponse.status}`
+    );
+  }
+  if (event.user === auth.user_id) return;
+
   const channel = event.item.channel;
   const messageTs = event.item.ts;
 
