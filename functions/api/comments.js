@@ -267,6 +267,27 @@ export async function onRequestPost(context) {
   });
 
   const comment_count = await syncCommentCount(context.env, postId);
+  // 일반 회원이 쓴 댓글만 슬랙으로 알림
+  if (is_admin === 0 && context.env.slack_comments_webhook_url) {
+    const commentId = result.meta.last_row_id;
+    const message =
+      `새 댓글이 등록됐어요.\n` +
+      `게시글 번호: ${postId}\n` +
+      `댓글 번호: ${commentId}\n` +
+      (is_secret
+        ? '비밀댓글입니다. 내용은 관리자 페이지에서 확인해 주세요.'
+        : `내용: ${content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}`);
+
+    context.waitUntil(
+      fetch(context.env.slack_comments_webhook_url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: message }),
+      }).then((response) => {
+        if (!response.ok) throw new Error(`Slack 응답: ${response.status}`);
+      }).catch((error) => console.error('댓글 슬랙 알림 실패:', error))
+    );
+  }
   return json({
     ok: true,
     id: result.meta.last_row_id,
