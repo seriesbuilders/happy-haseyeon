@@ -192,8 +192,7 @@ async function sendSlackCommentNotice(env, { postId, postSlug, commentId, conten
   const botReady =
     env.slack_comments_bot_token &&
     env.slack_comments_channel_id &&
-    env.slack_comments_signing_secret &&
-    env.slack_comments_delete_user_ids;
+    env.slack_comments_signing_secret;
 
   if (botReady) {
     const response = await fetch('https://slack.com/api/chat.postMessage', {

@@ -33,15 +33,8 @@ async function verifySlackRequest(request, signingSecret, rawBody) {
 }
 
 async function deleteReactedComment(env, event) {
-  const userIds = new Set(
-    String(env.slack_comments_delete_user_ids || '')
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean)
-  );
 
   if (
-    !userIds.has(event.user) ||
     event.item?.type !== 'message' ||
     event.item.channel !== env.slack_comments_channel_id
   ) return;
