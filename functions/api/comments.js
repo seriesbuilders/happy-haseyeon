@@ -7,6 +7,7 @@ import {
   kstDateTimeDisplay,
   maskSecretComments,
   sortCommentsForDisplay,
+  publicPostUrl,
 } from '../_utils.js';
 
 export async function onRequestOptions() {
@@ -177,6 +178,68 @@ export async function onRequestPost(context) {
     /* ignore */
   }
 
+//slack 용 추가
+async function sendSlackCommentNotice(env, { postId, postSlug, commentId, content, is_secret }) {
+  const message =
+    `새 댓글이 등록됐어요.\n` +
+    `게시글 번호: ${postId}\n` +
+    `게시글 URL: ${publicPostUrl(postSlug)}\n` +
+    `댓글 번호: ${commentId}\n` +
+    (is_secret
+      ? '비밀댓글입니다. 내용은 관리자 페이지에서 확인해 주세요.'
+      : `내용: ${content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}`);
+
+  const botReady =
+    env.slack_comments_bot_token &&
+    env.slack_comments_channel_id &&
+    env.slack_comments_signing_secret &&
+    env.slack_comments_delete_user_ids;
+
+  if (botReady) {
+    const response = await fetch('https://slack.com/api/chat.postMessage', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.slack_comments_bot_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: env.slack_comments_channel_id,
+        text: message + '\n🗑️ 이 반응을 누르면 댓글이 영구 삭제됩니다.',
+      }),
+    });
+
+    const sent = await response.json();
+    if (!response.ok || !sent.ok || !sent.ts || !sent.channel) {
+      throw new Error(`Slack 메시지 전송 실패: ${sent.error || response.status}`);
+    }
+
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS slack_comment_messages (
+      channel TEXT NOT NULL,
+      message_ts TEXT NOT NULL,
+      comment_id INTEGER NOT NULL,
+      post_id INTEGER NOT NULL,
+      PRIMARY KEY (channel, message_ts)
+    )`).run();
+
+    await env.DB.prepare(
+      'INSERT INTO slack_comment_messages (channel, message_ts, comment_id, post_id) VALUES (?, ?, ?, ?)'
+    ).bind(sent.channel, sent.ts, commentId, postId).run();
+    return;
+  }
+
+  if (!env.slack_comments_webhook_url) return;
+
+  const response = await fetch(env.slack_comments_webhook_url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: message }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Slack 웹훅 응답: ${response.status}`);
+  }
+}
+
   const admin = await requireAdmin(context.request, context.env);
   const body = await context.request.json().catch(() => ({}));
   const postId = Number(body.post_id);
@@ -189,7 +252,7 @@ export async function onRequestPost(context) {
   }
 
   const post = await context.env.DB.prepare(
-    'SELECT id FROM posts WHERE id = ? LIMIT 1'
+    'SELECT id, slug FROM posts WHERE id = ? LIMIT 1'
   )
     .bind(postId)
     .first();
@@ -268,23 +331,14 @@ export async function onRequestPost(context) {
 
   const comment_count = await syncCommentCount(context.env, postId);
   // 일반 회원이 쓴 댓글만 슬랙으로 알림
-  if (is_admin === 0 && context.env.slack_comments_webhook_url) {
-    const commentId = result.meta.last_row_id;
-    const message =
-      `새 댓글이 등록됐어요.\n` +
-      `게시글 번호: ${postId}\n` +
-      `댓글 번호: ${commentId}\n` +
-      (is_secret
-        ? '비밀댓글입니다. 내용은 관리자 페이지에서 확인해 주세요.'
-        : `내용: ${content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}`);
-
+  if (is_admin === 0) {
     context.waitUntil(
-      fetch(context.env.slack_comments_webhook_url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: message }),
-      }).then((response) => {
-        if (!response.ok) throw new Error(`Slack 응답: ${response.status}`);
+      sendSlackCommentNotice(context.env, {
+        postId,
+        postSlug: post.slug,
+        commentId: result.meta.last_row_id,
+        content,
+        is_secret,
       }).catch((error) => console.error('댓글 슬랙 알림 실패:', error))
     );
   }
