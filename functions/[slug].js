@@ -343,6 +343,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   <script src="/js/config.js"></script>
   <script src="/js/cafe-common.js?v=20260922-secret"></script>
   <script src="/js/track-view.js"></script>
+  ${/* 광고 랜딩: 주소창에서 utm 숨기기 안잡힐 경우 이부분만 삭제*/isAd ? '<script src="/js/hide-utm.js?v=20260929"></script>' : ''} 
   <script src="/js/post-comments.js?v=20260922-login"></script>
   <script>
     loadCafeTabs('홈');
