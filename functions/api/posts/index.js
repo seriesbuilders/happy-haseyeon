@@ -64,7 +64,7 @@ export async function onRequestGet(context) {
   let sql = `SELECT
       p.id, p.slug, p.title, p.category, p.cover_image, p.likes,
       COALESCE((SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND (c.status IS NULL OR c.status = '' OR c.status = 'active')), 0) AS comment_count,
-      p.comment_count_display, p.published_at, p.created_at
+      p.comment_count_display, p.published_at, p.created_at${isAdCategory ? ', p.ad_pixels' : ''}
     FROM posts p`;
   const binds = [];
   const where = [];

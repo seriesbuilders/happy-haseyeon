@@ -1344,6 +1344,26 @@ function formatKst(utcText) {
   return `${k.getUTCFullYear()}.${p(k.getUTCMonth() + 1)}.${p(k.getUTCDate())} ${p(k.getUTCHours())}:${p(k.getUTCMinutes())}`;
 }
 
+// 글에 들어 있는 픽셀 ID로 어느 매체용인지 표시 (여러 개면 모두)
+const AD_MEDIA_BY_PIXEL = [
+  ['meta_pixel_id', '메타'],
+  ['tiktok_pixel_id', '틱톡'],
+  ['kakao_pixel_id', '카모'],
+  ['google_ads_id', '구글애즈'],
+  ['naver_wcs_id', 'GFA'],
+];
+
+function adMediaLabel(raw) {
+  let px = {};
+  try {
+    px = typeof raw === 'string' ? JSON.parse(raw || '{}') : raw || {};
+  } catch {
+    return '-';
+  }
+  const names = AD_MEDIA_BY_PIXEL.filter(([key]) => String(px[key] || '').trim()).map(([, name]) => name);
+  return names.length ? names.join(', ') : '-';
+}
+
 function renderAdPostsTable(posts) {
   const tbody = document.getElementById('adPostsBody');
   if (!tbody) return;
@@ -1353,7 +1373,7 @@ function renderAdPostsTable(posts) {
     selectAll.indeterminate = false;
   }
   if (!posts?.length) {
-    tbody.innerHTML = '<tr><td colspan="8">등록된 광고 블로그가 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10">등록된 광고 블로그가 없습니다.</td></tr>';
     syncAdPostsBulkDeleteUi();
     return;
   }
@@ -1367,12 +1387,14 @@ function renderAdPostsTable(posts) {
         <td class="td-check">
           <input type="checkbox" data-ad-bulk-id="${p.id}" aria-label="${escapeHtml(p.title)} 선택" />
         </td>
+        <td>${Number(p.id)}</td>
         <td><button type="button" class="title-link" data-edit-ad="${p.id}">${escapeHtml(p.title)}</button></td>
         <td><a class="slug ad-full-url" href="${href}" target="_blank" rel="noopener">${escapeHtml(fullUrl)}</a></td>
         <td>${commentCount.toLocaleString()}</td>
         <td>${Number(p.likes).toLocaleString()}</td>
         <td>${escapeHtml(p.published_at)}</td>
         <td>${escapeHtml(formatKst(p.created_at))}</td>
+        <td>${escapeHtml(adMediaLabel(p.ad_pixels))}</td>
         <td>
           <button type="button" class="btn btn-ghost btn-sm" data-edit-ad="${p.id}">수정</button>
           <button type="button" class="btn btn-ghost btn-sm" data-copy-ad="${p.id}" title="본문·댓글 복사 (새 주소)">복사</button>
@@ -1411,7 +1433,7 @@ async function loadAdPosts() {
       const tbody = document.getElementById('adPostsBody');
       if (tbody) {
         tbody.innerHTML =
-          '<tr><td colspan="8">광고 목록을 불러오지 못했습니다.</td></tr>';
+          '<tr><td colspan="10">광고 목록을 불러오지 못했습니다.</td></tr>';
       }
     }
   }
