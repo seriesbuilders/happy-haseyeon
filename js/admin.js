@@ -1334,6 +1334,15 @@ function refreshAdPostsTable() {
   pager.hidden = false;
   pager.innerHTML = buildPagerHtml(adPostsPage, totalPages);
 }
+// DB의 UTC 시각을 한국 시간으로 표시
+function formatKst(utcText) {
+  if (!utcText) return '';
+  const d = new Date(String(utcText).replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return utcText;
+  const k = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${k.getUTCFullYear()}.${p(k.getUTCMonth() + 1)}.${p(k.getUTCDate())} ${p(k.getUTCHours())}:${p(k.getUTCMinutes())}`;
+}
 
 function renderAdPostsTable(posts) {
   const tbody = document.getElementById('adPostsBody');
@@ -1344,7 +1353,7 @@ function renderAdPostsTable(posts) {
     selectAll.indeterminate = false;
   }
   if (!posts?.length) {
-    tbody.innerHTML = '<tr><td colspan="7">등록된 광고 블로그가 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8">등록된 광고 블로그가 없습니다.</td></tr>';
     syncAdPostsBulkDeleteUi();
     return;
   }
@@ -1363,6 +1372,7 @@ function renderAdPostsTable(posts) {
         <td>${commentCount.toLocaleString()}</td>
         <td>${Number(p.likes).toLocaleString()}</td>
         <td>${escapeHtml(p.published_at)}</td>
+        <td>${escapeHtml(formatKst(p.created_at))}</td>
         <td>
           <button type="button" class="btn btn-ghost btn-sm" data-edit-ad="${p.id}">수정</button>
           <button type="button" class="btn btn-ghost btn-sm" data-copy-ad="${p.id}" title="본문·댓글 복사 (새 주소)">복사</button>
@@ -1401,7 +1411,7 @@ async function loadAdPosts() {
       const tbody = document.getElementById('adPostsBody');
       if (tbody) {
         tbody.innerHTML =
-          '<tr><td colspan="7">광고 목록을 불러오지 못했습니다.</td></tr>';
+          '<tr><td colspan="8">광고 목록을 불러오지 못했습니다.</td></tr>';
       }
     }
   }
