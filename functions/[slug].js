@@ -1,4 +1,4 @@
-import { ensureSchema, getSettings, ensureCommentsColumns, sortCommentsForDisplay, maskSecretComments } from './_utils.js';
+import { ensureSchema, getSettings, sortCommentsForDisplay, maskSecretComments } from './_utils.js';
 import { postHeadTags } from './_seo.js';
 import { buildPixelHeadHtml, buildPixelBodyStartHtml, AD_COMMON_GTM_ID, buildGtmHeadHtml, buildGtmBodyHtml } from './_pixels.js';
 import { sanitizePostBodyHtml, enrichLinkCardPreviews } from './_body.js';
@@ -71,17 +71,34 @@ export async function onRequestGet(context) {
     return new Response('Not Found', { status: 404 });
   }
 
+  // 완성된 글 페이지를 엣지에 60초 보관한다. 주소의 ?utm… 등 쿼리는 무시하고 경로로만 구분한다.
+  // ?nocache=1 로 열면 보관본을 건너뛴다 (수정 직후 확인용).
+  const reqUrl = new URL(context.request.url);
+  const cacheKey = new Request(reqUrl.origin + reqUrl.pathname, { method: 'GET' });
+  const useCache = !reqUrl.searchParams.has('nocache');
+  const cache = caches.default;
+  if (useCache) {
+    const hit = await cache.match(cacheKey);
+    if (hit) {
+      const out = new Response(hit.body, hit);
+      out.headers.set('Cache-Control', 'no-cache'); // 브라우저는 보관하지 않게
+      return out;
+    }
+  }
+
   try {
     await ensureSchema(context.env);
   } catch (e) {
     console.error(e);
   }
 
-  const post = await context.env.DB.prepare(
-    'SELECT * FROM posts WHERE slug = ? LIMIT 1'
-  )
-    .bind(slug)
-    .first();
+  // 글과 설정은 서로 관계없으니 동시에 읽는다 (DB 왕복 한 번 절약)
+  const [post, settings] = await Promise.all([
+    context.env.DB.prepare('SELECT * FROM posts WHERE slug = ? LIMIT 1')
+      .bind(slug)
+      .first(),
+    getSettings(context.env),
+  ]);
 
   if (!post) {
     return new Response(notFoundHtml(), {
@@ -90,12 +107,7 @@ export async function onRequestGet(context) {
     });
   }
 
-  const settings = await getSettings(context.env);
-  try {
-    await ensureCommentsColumns(context.env);
-  } catch (_) {
-    /* ignore */
-  }
+  // 댓글 컬럼 보강은 위 ensureSchema 안에서 이미 끝났다
   const { results: commentsRaw } = await context.env.DB.prepare(
     `SELECT * FROM comments WHERE post_id = ?
        AND (status IS NULL OR status = '' OR status = 'active')`
@@ -114,14 +126,14 @@ export async function onRequestGet(context) {
   }
   const postForRender = { ...post, body: bodyHtml };
 
-  const html = renderPost(postForRender, comments || [], settings, new URL(context.request.url).origin);
-  return new Response(html, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-cache',
-    },
-  });
+  const html = renderPost(postForRender, comments || [], settings, reqUrl.origin);
+  // 브라우저에는 매번 새로 받게(no-cache) 주고, 엣지 보관본에는 60초 유효기간을 붙여 따로 저장한다
+  const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+  if (useCache) {
+    const stored = new Response(html, { status: 200, headers: { ...headers, 'Cache-Control': 'public, s-maxage=60' } });
+    context.waitUntil(cache.put(cacheKey, stored));
+  }
+  return new Response(html, { status: 200, headers: { ...headers, 'Cache-Control': 'no-cache' } });
 }
 
 function notFoundHtml() {

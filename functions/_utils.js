@@ -55,8 +55,30 @@ export function kstDateTimeDisplay(d = new Date()) {
   return `${y}.${m}.${day} ${h}:${min}`;
 }
 
+/**
+ * 스키마 점검은 서버 인스턴스마다 한 번만 실행한다 (매 요청마다 PRAGMA/CREATE 를 날리지 않는다).
+ * 실패하면 기록을 지워 다음 요청에서 다시 시도한다. 스키마는 배포(새 인스턴스) 때만 바뀐다.
+ */
+const ensureOnce = new Map();
+function runOnce(key, fn) {
+  if (!ensureOnce.has(key)) {
+    ensureOnce.set(
+      key,
+      fn().catch((e) => {
+        ensureOnce.delete(key);
+        throw e;
+      })
+    );
+  }
+  return ensureOnce.get(key);
+}
+
 /** 일별 조회수 테이블 보장 */
-export async function ensureViewsTables(env) {
+export function ensureViewsTables(env) {
+  return runOnce('views', () => ensureViewsTablesNow(env));
+}
+
+async function ensureViewsTablesNow(env) {
   await env.DB.batch([
     env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS post_daily_views (
@@ -149,7 +171,11 @@ export async function getSettings(env) {
 let schemaReady = false;
 
 /** posts 테이블에 필요한 컬럼이 있는지 확인하고 없으면 추가 */
-export async function ensurePostsColumns(env) {
+export function ensurePostsColumns(env) {
+  return runOnce('posts-columns', () => ensurePostsColumnsNow(env));
+}
+
+async function ensurePostsColumnsNow(env) {
   let cols = [];
   try {
     const info = await env.DB.prepare('PRAGMA table_info(posts)').all();
@@ -200,7 +226,11 @@ export async function ensurePostsColumns(env) {
 }
 
 /** comments 테이블 컬럼 보강 */
-export async function ensureCommentsColumns(env) {
+export function ensureCommentsColumns(env) {
+  return runOnce('comments-columns', () => ensureCommentsColumnsNow(env));
+}
+
+async function ensureCommentsColumnsNow(env) {
   let cols = [];
   try {
     const info = await env.DB.prepare('PRAGMA table_info(comments)').all();
@@ -292,7 +322,11 @@ export function sortCommentsForDisplay(list) {
 }
 
 /** 픽셀/태그 적용 기록 (관리자 공용 메모) */
-export async function ensurePixelMemory(env) {
+export function ensurePixelMemory(env) {
+  return runOnce('pixel-memory', () => ensurePixelMemoryNow(env));
+}
+
+async function ensurePixelMemoryNow(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS pixel_memory (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -332,18 +366,13 @@ export async function ensurePixelMemory(env) {
 }
 
 /** 로컬/배포 공통 — 테이블 없으면 생성 + 기본 시드 */
-export async function ensureSchema(env) {
-  if (schemaReady) {
-    try {
-      await ensurePostsColumns(env);
-      await ensureCommentsColumns(env);
-      await ensureViewsTables(env);
-      await ensurePixelMemory(env);
-    } catch (e) {
-      console.error('ensurePostsColumns', e);
-    }
-    return;
-  }
+export function ensureSchema(env) {
+  // 인스턴스마다 한 번만. 동시에 들어온 요청은 같은 실행을 기다린다. 컬럼 보강은 각 ensure* 가 따로 한 번만 실행한다.
+  if (schemaReady) return Promise.resolve();
+  return runOnce('schema', () => ensureSchemaNow(env));
+}
+
+async function ensureSchemaNow(env) {
 
   await env.DB.batch([
     env.DB.prepare(`
