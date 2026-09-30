@@ -485,17 +485,30 @@ async function ensureSchemaNow(env) {
   ]);
 
   try {
-    await ensurePostsColumns(env);
-    await ensureCommentsColumns(env);
-    await ensureViewsTables(env);
-    await ensurePixelMemory(env);
+    // 서로 관계없는 점검이라 동시에 보낸다
+    await Promise.all([
+      ensurePostsColumns(env),
+      ensureCommentsColumns(env),
+      ensureViewsTables(env),
+      ensurePixelMemory(env),
+    ]);
   } catch (e) {
     console.error('posts migrate', e);
   }
 
-  const tagCount = await env.DB.prepare(
-    'SELECT COUNT(*) AS c FROM popular_tags'
-  ).first();
+  // 기본값 시드가 필요한지 확인하는 조회 7개를 한 번에 보낸다 (DB 왕복 7번 → 1번)
+  const [tagCountRes, tabCountRes, adminRes, blogNameRes, heroImgRes, heroVidRes, postRes] = await env.DB.batch([
+    env.DB.prepare('SELECT COUNT(*) AS c FROM popular_tags'),
+    env.DB.prepare('SELECT COUNT(*) AS c FROM cafe_tabs'),
+    env.DB.prepare('SELECT id FROM admins LIMIT 1'),
+    env.DB.prepare("SELECT value FROM settings WHERE key = 'blog_name'"),
+    env.DB.prepare("SELECT value FROM settings WHERE key = 'hero_image'"),
+    env.DB.prepare("SELECT value FROM settings WHERE key = 'hero_video'"),
+    env.DB.prepare('SELECT id FROM posts LIMIT 1'),
+  ]);
+  const firstRow = (r) => (r && r.results && r.results[0]) || null;
+
+  const tagCount = firstRow(tagCountRes);
   if (!tagCount || Number(tagCount.c) === 0) {
     const tags = ['건강', '다이어트', '운동', '맛집', '후기', '추천', '일상', '레시피'];
     for (let i = 0; i < tags.length; i++) {
@@ -507,9 +520,7 @@ async function ensureSchemaNow(env) {
     }
   }
 
-  const tabCount = await env.DB.prepare(
-    'SELECT COUNT(*) AS c FROM cafe_tabs'
-  ).first();
+  const tabCount = firstRow(tabCountRes);
   if (!tabCount || Number(tabCount.c) === 0) {
     const defaults = ['홈', '전체글', '인기글', '자유게시판', '후기', '공지'];
     for (let i = 0; i < defaults.length; i++) {
@@ -523,16 +534,14 @@ async function ensureSchemaNow(env) {
 
   // 타이틀-only 기본 공지 시드는 하지 않음 (상세는 posts category=공지 사용)
 
-  const admin = await env.DB.prepare('SELECT id FROM admins LIMIT 1').first();
+  const admin = firstRow(adminRes);
   if (!admin) {
     await env.DB.prepare('INSERT INTO admins (password) VALUES (?)')
       .bind('admin1234')
       .run();
   }
 
-  const blogName = await env.DB.prepare(
-    "SELECT value FROM settings WHERE key = 'blog_name'"
-  ).first();
+  const blogName = firstRow(blogNameRes);
   if (!blogName) {
     await env.DB.batch([
       env.DB.prepare(
@@ -566,24 +575,20 @@ async function ensureSchemaNow(env) {
   }
 
   // 기존 DB에 히어로 설정 없으면 기본값 추가
-  const heroImg = await env.DB.prepare(
-    "SELECT value FROM settings WHERE key = 'hero_image'"
-  ).first();
+  const heroImg = firstRow(heroImgRes);
   if (!heroImg) {
     await env.DB.prepare(
       "INSERT INTO settings (key, value) VALUES ('hero_image', '/images/hero-diet.jpg')"
     ).run();
   }
-  const heroVid = await env.DB.prepare(
-    "SELECT value FROM settings WHERE key = 'hero_video'"
-  ).first();
+  const heroVid = firstRow(heroVidRes);
   if (!heroVid) {
     await env.DB.prepare(
       "INSERT INTO settings (key, value) VALUES ('hero_video', '')"
     ).run();
   }
 
-  const post = await env.DB.prepare('SELECT id FROM posts LIMIT 1').first();
+  const post = firstRow(postRes);
   if (!post) {
     const result = await env.DB.prepare(
       `INSERT INTO posts (slug, title, body, category, likes, comment_count_display, published_at)
