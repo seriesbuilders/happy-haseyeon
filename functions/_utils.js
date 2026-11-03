@@ -15,12 +15,24 @@ export function options() {
 }
 
 /** 단순 테이블 비밀번호 비교 (세션/JWT 없음, X-Admin-Password 헤더) */
+// 비밀번호 확인 결과를 서버 인스턴스 안에서 5분 기억한다 (DB 연결이 멈출 때 관리자 요청마다 DB 를 한 번 더 기다리지 않도록).
+// 비밀번호를 바꾸면 그 인스턴스에서는 최대 5분 동안 옛 비밀번호가 더 통할 수 있다.
+const ADMIN_AUTH_MEMO_MS = 5 * 60 * 1000;
+const adminAuthMemo = new Map(); // password → { adminId, until }
+/** 비밀번호를 바꿨을 때 기억을 지운다 (같은 인스턴스에서 옛 비밀번호가 바로 막히도록) */
+export function forgetAdminAuth() {
+  adminAuthMemo.clear();
+}
+
 export async function requireAdmin(request, env) {
   const password = request.headers.get('X-Admin-Password');
 
   if (!password) {
     return { ok: false, response: json({ error: '비밀번호가 필요합니다.' }, 401) };
   }
+
+  const memo = adminAuthMemo.get(password);
+  if (memo && memo.until > Date.now()) return { ok: true, adminId: memo.adminId };
 
   const row = await env.DB.prepare(
     'SELECT id FROM admins WHERE password = ? LIMIT 1'
@@ -32,6 +44,7 @@ export async function requireAdmin(request, env) {
     return { ok: false, response: json({ error: '비밀번호가 올바르지 않습니다.' }, 401) };
   }
 
+  adminAuthMemo.set(password, { adminId: row.id, until: Date.now() + ADMIN_AUTH_MEMO_MS });
   return { ok: true, adminId: row.id };
 }
 

@@ -1,4 +1,4 @@
-import { json, options, requireAdmin } from '../_utils.js';
+import { json, options, requireAdmin, forgetAdminAuth } from '../_utils.js';
 
 export async function onRequestOptions() {
   return options();
@@ -60,6 +60,7 @@ export async function onRequestPut(context) {
   await context.env.DB.prepare('UPDATE admins SET password = ? WHERE id = ?')
     .bind(String(newPassword), auth.adminId)
     .run();
+  forgetAdminAuth();
 
   return json({ ok: true });
 }
