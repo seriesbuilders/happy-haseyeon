@@ -248,7 +248,10 @@ async function adminFetch(path, options = {}) {
     headers.set('Content-Type', 'application/json');
     options.body = JSON.stringify(options.json);
   }
-  const res = await fetch(apiUrl(path), { ...options, headers });
+  // timeoutMs 를 주면 그 시간 안에 응답이 없을 때 끊는다 (서버가 가끔 몇십 초씩 멈추는 일 대비)
+  const { timeoutMs, ...rest } = options;
+  const signal = timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined;
+  const res = await fetch(apiUrl(path), { ...rest, headers, signal });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401) {
     sessionStorage.removeItem(PASS_KEY);
@@ -1419,21 +1422,31 @@ async function loadPosts() {
 }
 
 async function loadAdPosts() {
-  try {
-    const data = await adminFetch(
-      '/api/posts?category=' + encodeURIComponent(AD_CATEGORY)
-    );
-    allAdPostsCache = data.posts || [];
-    adPostsPage = 1;
-    refreshAdPostsTable();
-    renderAdCommentPostList();
-  } catch (e) {
-    if (e.message !== 'unauthorized') {
-      console.error(e);
-      const tbody = document.getElementById('adPostsBody');
+  const tbody = document.getElementById('adPostsBody');
+  // 서버 응답이 가끔 몇십 초씩 늦는 일이 있어, 10초 안에 안 오면 한 번 더 요청한다
+  const ATTEMPTS = [10000, 15000];
+  for (let i = 0; i < ATTEMPTS.length; i++) {
+    try {
       if (tbody) {
-        tbody.innerHTML =
-          '<tr><td colspan="10">광고 목록을 불러오지 못했습니다.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="10">광고 목록을 불러오는 중${i ? ' (다시 시도 중)' : ''}…</td></tr>`;
+      }
+      const data = await adminFetch(
+        '/api/posts?category=' + encodeURIComponent(AD_CATEGORY),
+        { timeoutMs: ATTEMPTS[i] }
+      );
+      allAdPostsCache = data.posts || [];
+      adPostsPage = 1;
+      refreshAdPostsTable();
+      renderAdCommentPostList();
+      return;
+    } catch (e) {
+      if (e.message === 'unauthorized') return;
+      console.error(e);
+      const last = i === ATTEMPTS.length - 1;
+      if (last && tbody) {
+        const why = e.name === 'TimeoutError' || e.name === 'AbortError' ? '서버 응답이 너무 늦습니다.' : '광고 목록을 불러오지 못했습니다.';
+        tbody.innerHTML = `<tr><td colspan="10">${why} <button type="button" class="btn btn-ghost btn-sm" data-retry-ad-posts="1">다시 시도</button></td></tr>`;
+        tbody.querySelector('[data-retry-ad-posts]')?.addEventListener('click', () => loadAdPosts());
       }
     }
   }

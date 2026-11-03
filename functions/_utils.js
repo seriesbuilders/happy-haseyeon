@@ -36,6 +36,24 @@ export async function requireAdmin(request, env) {
 }
 
 export const AD_CATEGORY = '광고';
+
+/**
+ * 관리자 광고 목록(/api/posts?category=광고) 응답을 엣지에 잠깐 보관하기 위한 키.
+ * DB 연결이 가끔 몇십 초씩 멈추는 일이 있어, 목록은 30초 동안 보관본을 쓰고
+ * 글·댓글이 바뀌는 요청에서는 purgeAdListCache() 로 바로 지운다.
+ */
+export const AD_LIST_CACHE_SECONDS = 30;
+export function adListCacheKey(request) {
+  const origin = new URL(request.url).origin;
+  return new Request(`${origin}/api/posts?category=${encodeURIComponent(AD_CATEGORY)}`, { method: 'GET' });
+}
+export async function purgeAdListCache(request) {
+  try {
+    await caches.default.delete(adListCacheKey(request));
+  } catch (e) {
+    console.error('purgeAdListCache', e);
+  }
+}
 export const SITE_ORIGIN = 'https://tennis0915.com';
 
 /** Asia/Seoul(UTC+9) 기준 YYYY-MM-DD */

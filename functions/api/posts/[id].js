@@ -1,4 +1,4 @@
-import { json, options, requireAdmin, ensurePostsColumns, ensureCommentsColumns, sortCommentsForDisplay } from '../../_utils.js';
+import { json, options, requireAdmin, ensurePostsColumns, ensureCommentsColumns, sortCommentsForDisplay, purgeAdListCache } from '../../_utils.js';
 import { serializeAdPixels } from '../../_pixels.js';
 
 export async function onRequestOptions() {
@@ -304,6 +304,7 @@ export async function onRequestPut(context) {
       .bind(id)
       .first();
 
+    await purgeAdListCache(context.request);
     return json({ ok: true, post });
   } catch (e) {
     console.error('PUT /api/posts', e);
@@ -324,5 +325,6 @@ export async function onRequestDelete(context) {
     .run();
   await context.env.DB.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
 
+  await purgeAdListCache(context.request);
   return json({ ok: true });
 }

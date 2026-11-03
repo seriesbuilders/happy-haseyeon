@@ -7,6 +7,7 @@ import {
   ensurePostsColumns,
   ensureCommentsColumns,
   AD_CATEGORY,
+  purgeAdListCache,
 } from '../../../_utils.js';
 
 export async function onRequestOptions() {
@@ -314,6 +315,7 @@ export async function onRequestPost(context) {
     idMap.set(Number(c.id), inserted.meta.last_row_id);
   }
 
+  await purgeAdListCache(context.request);
   return json({
     ok: true,
     id: newId,

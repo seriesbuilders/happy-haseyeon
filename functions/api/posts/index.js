@@ -8,6 +8,9 @@ import {
   ensureCommentsColumns,
   sortCommentsForDisplay,
   AD_CATEGORY,
+  AD_LIST_CACHE_SECONDS,
+  adListCacheKey,
+  purgeAdListCache,
 } from '../../_utils.js';
 import { serializeAdPixels } from '../../_pixels.js';
 
@@ -58,6 +61,17 @@ export async function onRequestGet(context) {
   if (isAdCategory) {
     const auth = await requireAdmin(context.request, context.env);
     if (!auth.ok) return auth.response;
+    // 비밀번호 확인이 끝난 뒤에만 보관본을 준다 (보관본은 관리자 전용 응답)
+    try {
+      const hit = await caches.default.match(adListCacheKey(context.request));
+      if (hit) {
+        const out = new Response(hit.body, hit);
+        out.headers.set('X-Ad-List-Cache', 'hit');
+        return out;
+      }
+    } catch (e) {
+      console.error('ad list cache match', e);
+    }
   }
   const excludeAd = !isAdCategory;
 
@@ -83,7 +97,15 @@ export async function onRequestGet(context) {
     const { results } = binds.length
       ? await stmt.bind(...binds).all()
       : await stmt.all();
-    return json({ posts: results || [] });
+    const res = json({ posts: results || [] });
+    if (isAdCategory) {
+      // 광고 목록은 30초 보관. 글·댓글이 바뀌면 purgeAdListCache() 가 지운다.
+      const stored = new Response(res.clone().body, res);
+      stored.headers.set('Cache-Control', `public, s-maxage=${AD_LIST_CACHE_SECONDS}`);
+      context.waitUntil(caches.default.put(adListCacheKey(context.request), stored).catch((e) => console.error('ad list cache put', e)));
+      res.headers.set('X-Ad-List-Cache', 'miss');
+    }
+    return res;
   } catch (e) {
     // cover_image 없는 구버전 DB 폴백
     let fallback = `SELECT id, slug, title, category, likes, comment_count_display, published_at, created_at FROM posts`;
@@ -294,6 +316,7 @@ export async function onRequestPost(context) {
       ad_pixels,
     });
 
+    await purgeAdListCache(context.request);
     return json({
       ok: true,
       id: result.meta.last_row_id,

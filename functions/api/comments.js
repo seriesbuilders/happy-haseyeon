@@ -8,6 +8,7 @@ import {
   maskSecretComments,
   sortCommentsForDisplay,
   publicPostUrl,
+  purgeAdListCache,
 } from '../_utils.js';
 
 export async function onRequestOptions() {
@@ -351,6 +352,7 @@ async function sendSlackCommentNotice(env, { postId, postSlug, commentId, conten
   });
 
   const comment_count = await syncCommentCount(context.env, postId);
+  await purgeAdListCache(context.request); // 관리자 목록의 댓글 수가 바뀌므로 보관본 지움
   // 일반 회원이 쓴 댓글만 슬랙으로 알림
   if (is_admin === 0) {
     context.waitUntil(
@@ -590,5 +592,6 @@ export async function onRequestDelete(context) {
   }
 
   const comment_count = await syncCommentCount(context.env, row.post_id);
+  await purgeAdListCache(context.request);
   return json({ ok: true, comment_count });
 }
