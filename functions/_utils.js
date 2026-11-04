@@ -254,6 +254,11 @@ async function ensurePostsColumnsNow(env) {
     'share_count_display',
     'ALTER TABLE posts ADD COLUMN share_count_display INTEGER NOT NULL DEFAULT 0'
   );
+  // 관리자 즐겨찾기 (1=즐겨찾기). 원본 글을 목록에서 빨리 찾기 위한 표시
+  await addIfMissing(
+    'is_favorite',
+    'ALTER TABLE posts ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0'
+  );
 }
 
 /** comments 테이블 컬럼 보강 */

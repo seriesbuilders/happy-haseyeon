@@ -1283,10 +1283,33 @@ function syncAdPostsBulkDeleteUi() {
   }
 }
 
+// 광고 목록 "즐겨찾기만 보기" 상태 (이 브라우저에 기억)
+const AD_FAV_ONLY_KEY = 'adPostsFavOnly';
+let adPostsFavOnly = false;
+try {
+  adPostsFavOnly = localStorage.getItem(AD_FAV_ONLY_KEY) === '1';
+} catch {
+  /* 저장소를 못 쓰면 기본값 */
+}
+function setAdPostsFavOnly(on) {
+  adPostsFavOnly = !!on;
+  try {
+    localStorage.setItem(AD_FAV_ONLY_KEY, adPostsFavOnly ? '1' : '0');
+  } catch {
+    /* ignore */
+  }
+  const btn = document.getElementById('btnAdPostsFavOnly');
+  if (btn) {
+    btn.classList.toggle('is-on', adPostsFavOnly);
+    btn.setAttribute('aria-pressed', adPostsFavOnly ? 'true' : 'false');
+  }
+}
+
 function filterAdPostsByUrl(posts, q) {
   const raw = String(q || '').trim().toLowerCase();
-  if (!raw) return posts || [];
-  return (posts || []).filter((p) => {
+  const base = adPostsFavOnly ? (posts || []).filter((p) => Number(p.is_favorite)) : posts || [];
+  if (!raw) return base;
+  return base.filter((p) => {
     const url = publicPostUrl(p.slug, { ad: true }).toLowerCase();
     const slug = String(p.slug || '').toLowerCase();
     const title = String(p.title || '').toLowerCase();
@@ -1376,7 +1399,7 @@ function renderAdPostsTable(posts) {
     selectAll.indeterminate = false;
   }
   if (!posts?.length) {
-    tbody.innerHTML = '<tr><td colspan="10">등록된 광고 블로그가 없습니다.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="11">${adPostsFavOnly ? '즐겨찾기한 광고 블로그가 없습니다. 목록에서 ☆ 를 눌러 추가하세요.' : '등록된 광고 블로그가 없습니다.'}</td></tr>`;
     syncAdPostsBulkDeleteUi();
     return;
   }
@@ -1385,11 +1408,13 @@ function renderAdPostsTable(posts) {
       const fullUrl = publicPostUrl(p.slug, { ad: true });
       const href = postHref(p.slug, { ad: true });
       const commentCount = Number(p.comment_count ?? p.comment_count_display) || 0;
+      const fav = Number(p.is_favorite) ? 1 : 0;
       return `
-      <tr>
+      <tr${fav ? ' class="row-fav"' : ''}>
         <td class="td-check">
           <input type="checkbox" data-ad-bulk-id="${p.id}" aria-label="${escapeHtml(p.title)} 선택" />
         </td>
+        <td class="td-fav"><button type="button" class="fav-btn${fav ? ' is-on' : ''}" data-fav-ad="${p.id}" data-fav="${fav}" title="${fav ? '즐겨찾기 해제' : '즐겨찾기 추가'}" aria-label="${fav ? '즐겨찾기 해제' : '즐겨찾기 추가'}">${fav ? '★' : '☆'}</button></td>
         <td>${Number(p.id)}</td>
         <td><button type="button" class="title-link" data-edit-ad="${p.id}">${escapeHtml(p.title)}</button></td>
         <td><a class="slug ad-full-url" href="${href}" target="_blank" rel="noopener">${escapeHtml(fullUrl)}</a></td>
@@ -1428,7 +1453,7 @@ async function loadAdPosts() {
   for (let i = 0; i < ATTEMPTS.length; i++) {
     try {
       if (tbody) {
-        tbody.innerHTML = `<tr><td colspan="10">광고 목록을 불러오는 중${i ? ' (다시 시도 중)' : ''}…</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11">광고 목록을 불러오는 중${i ? ' (다시 시도 중)' : ''}…</td></tr>`;
       }
       const data = await adminFetch(
         '/api/posts?category=' + encodeURIComponent(AD_CATEGORY),
@@ -1445,7 +1470,7 @@ async function loadAdPosts() {
       const last = i === ATTEMPTS.length - 1;
       if (last && tbody) {
         const why = e.name === 'TimeoutError' || e.name === 'AbortError' ? '서버 응답이 너무 늦습니다.' : '광고 목록을 불러오지 못했습니다.';
-        tbody.innerHTML = `<tr><td colspan="10">${why} <button type="button" class="btn btn-ghost btn-sm" data-retry-ad-posts="1">다시 시도</button></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11">${why} <button type="button" class="btn btn-ghost btn-sm" data-retry-ad-posts="1">다시 시도</button></td></tr>`;
         tbody.querySelector('[data-retry-ad-posts]')?.addEventListener('click', () => loadAdPosts());
       }
     }
@@ -4433,6 +4458,13 @@ function bindAdminUI() {
     adPostsPage = 1;
     refreshAdPostsTable();
   });
+  // 즐겨찾기만 보기 토글 (상태는 이 브라우저에 기억)
+  setAdPostsFavOnly(adPostsFavOnly);
+  document.getElementById('btnAdPostsFavOnly')?.addEventListener('click', () => {
+    setAdPostsFavOnly(!adPostsFavOnly);
+    adPostsPage = 1;
+    refreshAdPostsTable();
+  });
   document.getElementById('adPostsPager')?.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-page]');
     if (!btn) return;
@@ -4525,6 +4557,24 @@ function bindAdminUI() {
   });
 
   document.getElementById('adPostsBody')?.addEventListener('click', async (e) => {
+    const favEl = e.target.closest('[data-fav-ad]');
+    if (favEl) {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = Number(favEl.dataset.favAd);
+      const next = favEl.dataset.fav === '1' ? 0 : 1;
+      favEl.disabled = true;
+      try {
+        await adminFetch(`/api/posts/${id}/favorite`, { method: 'POST', json: { is_favorite: next }, timeoutMs: 15000 });
+        const item = allAdPostsCache.find((p) => Number(p.id) === id);
+        if (item) item.is_favorite = next;
+        refreshAdPostsTable();
+      } catch (err) {
+        if (err.message !== 'unauthorized') alert('즐겨찾기 저장에 실패했습니다: ' + err.message);
+        favEl.disabled = false;
+      }
+      return;
+    }
     const copyEl = e.target.closest('[data-copy-ad]');
     if (copyEl) {
       e.preventDefault();

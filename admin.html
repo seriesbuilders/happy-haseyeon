@@ -7,7 +7,7 @@
   <title>관리자 — 행복하서연</title>
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/dist/css/suneditor.min.css" />
-  <link rel="stylesheet" href="/css/admin.css?v=20260922-secret" />
+  <link rel="stylesheet" href="/css/admin.css?v=20261104-fav" />
 </head>
 <body class="admin-body">
   <div id="loginView" class="login-wrap">
@@ -464,6 +464,7 @@
             <button type="button" class="btn btn-primary" id="btnNewAdPost">광고 블로그 작성</button>
             <button type="button" class="btn btn-ghost" id="btnRefreshAdPosts">새로고침</button>
             <button type="button" class="btn btn-danger" id="btnBulkDeleteAdPosts" disabled>선택 삭제</button>
+            <button type="button" class="btn btn-ghost btn-fav-only" id="btnAdPostsFavOnly" aria-pressed="false" title="즐겨찾기한 글만 보기">★ 즐겨찾기만</button>
             <input
               type="search"
               id="adPostsUrlSearch"
@@ -485,6 +486,7 @@
                   <th class="th-check">
                     <input type="checkbox" id="adPostsSelectAll" title="전체 선택" aria-label="전체 선택" />
                   </th>
+                  <th class="th-fav" title="즐겨찾기">★</th>
                   <th>ID</th>
                   <th>제목</th>
                   <th>도메인 URL</th>
@@ -1141,6 +1143,6 @@
   <script src="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/src/lang/ko.js"></script>
   <script src="/js/config.js"></script>
   <script src="/js/naver-paste-sanitize.js?v=20260918-react1"></script>
-  <script src="/js/admin.js?v=20261103-retry"></script>
+  <script src="/js/admin.js?v=20261104-fav"></script>
 </body>
 </html>

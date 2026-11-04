@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS posts (
   likes INTEGER NOT NULL DEFAULT 0,
   comment_count_display INTEGER NOT NULL DEFAULT 0,
   share_count_display INTEGER NOT NULL DEFAULT 0,
+  is_favorite INTEGER NOT NULL DEFAULT 0,
   published_at TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
