@@ -126,7 +126,11 @@ export async function onRequestGet(context) {
   }
   const postForRender = { ...post, body: bodyHtml };
 
-  const html = renderPost(postForRender, comments || [], settings, reqUrl.origin);
+  let html = renderPost(postForRender, comments || [], settings, reqUrl.origin);
+  // 예전 이미지 주소(개발용 r2.dev, 속도 제한)를 내보낼 때만 새 주소로 바꿔 끼운다. DB 본문은 그대로.
+  if (shouldRewriteImageHost(context.env, slug)) {
+    html = html.split(context.env.IMAGE_HOST_OLD).join(String(context.env.R2_PUBLIC_URL || '').replace(/\/$/, ''));
+  }
   // 브라우저에는 매번 새로 받게(no-cache) 주고, 엣지 보관본에는 60초 유효기간을 붙여 따로 저장한다
   const headers = { 'Content-Type': 'text/html; charset=utf-8' };
   if (useCache) {
@@ -134,6 +138,16 @@ export async function onRequestGet(context) {
     context.waitUntil(cache.put(cacheKey, stored));
   }
   return new Response(html, { status: 200, headers: { ...headers, 'Cache-Control': 'no-cache' } });
+}
+
+/** wrangler.toml 의 IMAGE_HOST_REWRITE 설정에 따라 이 글의 이미지 주소를 바꿔 끼울지 */
+function shouldRewriteImageHost(env, slug) {
+  const mode = String(env.IMAGE_HOST_REWRITE || '').trim();
+  const oldHost = String(env.IMAGE_HOST_OLD || '').trim();
+  const newHost = String(env.R2_PUBLIC_URL || '').trim();
+  if (!mode || !oldHost || !newHost || oldHost === newHost) return false;
+  if (mode === 'all') return true;
+  return mode.split(',').map((s) => s.trim()).filter(Boolean).includes(slug);
 }
 
 function notFoundHtml() {

@@ -14,3 +14,7 @@ bucket_name = "happy-haseyeon-r2"
 
 [vars]
 R2_PUBLIC_URL = "https://img.tennis0915.com"
+# 글을 내보낼 때 본문 속 예전 이미지 주소(pub-….r2.dev, 속도 제한)를 R2_PUBLIC_URL 로 바꿔 끼운다.
+# DB 의 글 본문은 그대로 둔다. 값: 비우면 끔 / "all" 이면 모든 글 / 글 주소(slug)를 쉼표로 적으면 그 글만 (시범 적용)
+IMAGE_HOST_REWRITE = "CEvFBL30bK3fRwWBe6"
+IMAGE_HOST_OLD = "https://pub-0d79669bad084bcd94df5093066b951f.r2.dev"
