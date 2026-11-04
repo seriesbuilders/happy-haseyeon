@@ -9,7 +9,18 @@ import {
   sortCommentsForDisplay,
   publicPostUrl,
   purgeAdListCache,
+  purgeLandingCache,
 } from '../_utils.js';
+
+/** 댓글이 바뀐 글의 페이지 보관본을 지운다 (글 번호로 주소를 찾아서) */
+async function purgeLandingByPostId(context, postId) {
+  try {
+    const p = await context.env.DB.prepare('SELECT slug FROM posts WHERE id = ?').bind(Number(postId)).first();
+    await purgeLandingCache(context.request, p?.slug);
+  } catch (e) {
+    console.error('purgeLandingByPostId', e);
+  }
+}
 
 export async function onRequestOptions() {
   return options();
@@ -353,6 +364,7 @@ async function sendSlackCommentNotice(env, { postId, postSlug, commentId, conten
 
   const comment_count = await syncCommentCount(context.env, postId);
   await purgeAdListCache(context.request); // 관리자 목록의 댓글 수가 바뀌므로 보관본 지움
+  await purgeLandingCache(context.request, post.slug); // 글 페이지 보관본도 지움 (새 댓글이 바로 보이게)
   // 일반 회원이 쓴 댓글만 슬랙으로 알림
   if (is_admin === 0) {
     context.waitUntil(
@@ -501,6 +513,7 @@ export async function onRequestPut(context) {
         throw e;
       }
     }
+    await purgeLandingByPostId(context, row.post_id);
     return json({ ok: true });
   }
 
@@ -521,6 +534,7 @@ export async function onRequestPut(context) {
   )
     .bind(content, id)
     .run();
+  await purgeLandingByPostId(context, row.post_id);
 
   return json({
     ok: true,
@@ -593,5 +607,6 @@ export async function onRequestDelete(context) {
 
   const comment_count = await syncCommentCount(context.env, row.post_id);
   await purgeAdListCache(context.request);
+  await purgeLandingByPostId(context, row.post_id);
   return json({ ok: true, comment_count });
 }

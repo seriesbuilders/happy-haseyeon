@@ -1,4 +1,4 @@
-import { json, options, requireAdmin, ensurePostsColumns, ensureCommentsColumns, sortCommentsForDisplay, purgeAdListCache } from '../../_utils.js';
+import { json, options, requireAdmin, ensurePostsColumns, ensureCommentsColumns, sortCommentsForDisplay, purgeAdListCache, purgeLandingCache } from '../../_utils.js';
 import { serializeAdPixels } from '../../_pixels.js';
 
 export async function onRequestOptions() {
@@ -305,6 +305,7 @@ export async function onRequestPut(context) {
       .first();
 
     await purgeAdListCache(context.request);
+    await purgeLandingCache(context.request, post?.slug); // 수정한 글의 페이지 보관본도 지운다
     return json({ ok: true, post });
   } catch (e) {
     console.error('PUT /api/posts', e);
@@ -320,11 +321,13 @@ export async function onRequestDelete(context) {
   if (!auth.ok) return auth.response;
 
   const id = context.params.id;
+  const gone = await context.env.DB.prepare('SELECT slug FROM posts WHERE id = ?').bind(id).first();
   await context.env.DB.prepare('DELETE FROM comments WHERE post_id = ?')
     .bind(id)
     .run();
   await context.env.DB.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
 
   await purgeAdListCache(context.request);
+  await purgeLandingCache(context.request, gone?.slug);
   return json({ ok: true });
 }

@@ -60,6 +60,20 @@ export function adListCacheKey(request) {
   const origin = new URL(request.url).origin;
   return new Request(`${origin}/api/posts?category=${encodeURIComponent(AD_CATEGORY)}`, { method: 'GET' });
 }
+/** 광고 글 페이지 보관본의 키 (주소는 끝에 / 가 붙는 형태로 통일) */
+export function landingCacheKey(request, slug) {
+  const origin = new URL(request.url).origin;
+  return new Request(`${origin}/${slug}/`, { method: 'GET' });
+}
+/** 글·댓글이 바뀌었을 때 그 글의 페이지 보관본을 지운다 (다음 방문자부터 새 내용) */
+export async function purgeLandingCache(request, slug) {
+  if (!slug) return;
+  try {
+    await caches.default.delete(landingCacheKey(request, slug));
+  } catch (e) {
+    console.error('purgeLandingCache', e);
+  }
+}
 export async function purgeAdListCache(request) {
   try {
     await caches.default.delete(adListCacheKey(request));

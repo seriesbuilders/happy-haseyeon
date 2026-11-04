@@ -1,4 +1,4 @@
-import { ensureSchema, getSettings, sortCommentsForDisplay, maskSecretComments } from './_utils.js';
+import { ensureSchema, getSettings, sortCommentsForDisplay, maskSecretComments, landingCacheKey } from './_utils.js';
 import { postHeadTags } from './_seo.js';
 import { buildPixelHeadHtml, buildPixelBodyStartHtml, AD_COMMON_GTM_ID, buildGtmHeadHtml, buildGtmBodyHtml } from './_pixels.js';
 import { sanitizePostBodyHtml, enrichLinkCardPreviews } from './_body.js';
@@ -71,21 +71,43 @@ export async function onRequestGet(context) {
     return new Response('Not Found', { status: 404 });
   }
 
-  // 완성된 글 페이지를 엣지에 60초 보관한다. 주소의 ?utm… 등 쿼리는 무시하고 경로로만 구분한다.
-  // ?nocache=1 로 열면 보관본을 건너뛴다 (수정 직후 확인용).
+  // 완성된 글 페이지를 엣지에 보관한다 (주소의 ?utm… 등 쿼리는 무시, 경로로만 구분).
+  //  - 보관본이 있으면 바로 준다. 만든 지 FRESH_MS 가 지났으면 주고 나서 뒤에서 새로 만들어 교체한다.
+  //  - 보관본은 KEEP_SECONDS(6시간) 동안 아무도 안 열면 사라진다.
+  //  - 글·댓글이 바뀌면 API 쪽에서 purgeLandingCache() 로 지운다. ?nocache=1 은 보관본을 건너뛴다.
   const reqUrl = new URL(context.request.url);
-  const cacheKey = new Request(reqUrl.origin + reqUrl.pathname, { method: 'GET' });
+  const cacheKey = landingCacheKey(context.request, slug);
   const useCache = !reqUrl.searchParams.has('nocache');
   const cache = caches.default;
   if (useCache) {
     const hit = await cache.match(cacheKey);
     if (hit) {
+      const renderedAt = Number(hit.headers.get('X-Rendered-At') || 0);
+      if (!renderedAt || Date.now() - renderedAt > LANDING_FRESH_MS) {
+        // 오래된 보관본: 방문자에게는 바로 주고, 뒤에서 새 것으로 바꿔 둔다
+        context.waitUntil(renderLanding(context, slug, reqUrl.origin, cacheKey).catch((e) => console.error('landing refresh', e)));
+      }
       const out = new Response(hit.body, hit);
       out.headers.set('Cache-Control', 'no-cache'); // 브라우저는 보관하지 않게
       return out;
     }
   }
 
+  const fresh = await renderLanding(context, slug, reqUrl.origin, useCache ? cacheKey : null);
+  if (!fresh) {
+    return new Response(notFoundHtml(), {
+      status: 404,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
+  }
+  return new Response(fresh, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' } });
+}
+
+const LANDING_FRESH_MS = 60 * 1000; // 이 시간이 지난 보관본은 주고 나서 뒤에서 갱신
+const LANDING_KEEP_SECONDS = 6 * 60 * 60; // 보관본 최대 보관 시간 (6시간)
+
+/** DB 에서 글·댓글을 읽어 페이지 HTML 을 만든다. cacheKey 가 있으면 보관본으로도 저장한다. 글이 없으면 null. */
+async function renderLanding(context, slug, origin, cacheKey) {
   try {
     await ensureSchema(context.env);
   } catch (e) {
@@ -99,13 +121,7 @@ export async function onRequestGet(context) {
       .first(),
     getSettings(context.env),
   ]);
-
-  if (!post) {
-    return new Response(notFoundHtml(), {
-      status: 404,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
-  }
+  if (!post) return null;
 
   // 댓글 컬럼 보강은 위 ensureSchema 안에서 이미 끝났다
   const { results: commentsRaw } = await context.env.DB.prepare(
@@ -126,18 +142,23 @@ export async function onRequestGet(context) {
   }
   const postForRender = { ...post, body: bodyHtml };
 
-  let html = renderPost(postForRender, comments || [], settings, reqUrl.origin);
+  let html = renderPost(postForRender, comments || [], settings, origin);
   // 예전 이미지 주소(개발용 r2.dev, 속도 제한)를 내보낼 때만 새 주소로 바꿔 끼운다. DB 본문은 그대로.
   if (shouldRewriteImageHost(context.env, slug)) {
     html = html.split(context.env.IMAGE_HOST_OLD).join(String(context.env.R2_PUBLIC_URL || '').replace(/\/$/, ''));
   }
-  // 브라우저에는 매번 새로 받게(no-cache) 주고, 엣지 보관본에는 60초 유효기간을 붙여 따로 저장한다
-  const headers = { 'Content-Type': 'text/html; charset=utf-8' };
-  if (useCache) {
-    const stored = new Response(html, { status: 200, headers: { ...headers, 'Cache-Control': 'public, s-maxage=60' } });
-    context.waitUntil(cache.put(cacheKey, stored));
+  if (cacheKey) {
+    const stored = new Response(html, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': `public, s-maxage=${LANDING_KEEP_SECONDS}`,
+        'X-Rendered-At': String(Date.now()),
+      },
+    });
+    await caches.default.put(cacheKey, stored);
   }
-  return new Response(html, { status: 200, headers: { ...headers, 'Cache-Control': 'no-cache' } });
+  return html;
 }
 
 /** wrangler.toml 의 IMAGE_HOST_REWRITE 설정에 따라 이 글의 이미지 주소를 바꿔 끼울지 */
