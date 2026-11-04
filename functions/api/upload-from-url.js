@@ -43,6 +43,9 @@ function isOwnedImageUrl(url, env) {
   if (!u || /^data:/i.test(u)) return true;
   const base = (env.R2_PUBLIC_URL || '').replace(/\/$/, '');
   if (base && u.startsWith(base + '/')) return true;
+  // 예전 R2 주소(pub-….r2.dev)도 우리 파일이다. 다시 올리면 같은 사진이 두 벌 생기므로 건너뛴다.
+  const oldBase = (env.IMAGE_HOST_OLD || '').replace(/\/$/, '');
+  if (oldBase && u.startsWith(oldBase + '/')) return true;
   if (/^\/images\//i.test(u)) return true;
   try {
     const host = new URL(u, 'https://tennis0915.com').hostname;
