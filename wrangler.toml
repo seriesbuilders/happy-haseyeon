@@ -13,4 +13,4 @@ binding = "IMAGES"
 bucket_name = "happy-haseyeon-r2"
 
 [vars]
-R2_PUBLIC_URL = "https://pub-0d79669bad084bcd94df5093066b951f.r2.dev"
+R2_PUBLIC_URL = "https://img.tennis0915.com"

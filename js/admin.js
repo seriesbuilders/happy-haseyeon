@@ -3934,7 +3934,8 @@ function dataUrlToFile(dataUrl, filename) {
   return new File([bytes], name, { type: mime });
 }
 
-const R2_PUBLIC_HOST = 'pub-0d79669bad084bcd94df5093066b951f.r2.dev';
+const R2_PUBLIC_HOST = 'img.tennis0915.com';
+const R2_PUBLIC_HOST_OLD = 'pub-0d79669bad084bcd94df5093066b951f.r2.dev'; // 예전 주소 (기존 글에 남아 있을 수 있음)
 
 function decodeHtmlEntitiesInUrl(s) {
   return String(s || '')
@@ -3949,7 +3950,7 @@ function decodeHtmlEntitiesInUrl(s) {
 function isOwnedImageUrl(url) {
   const u = decodeHtmlEntitiesInUrl(url).trim();
   if (!u || /^data:/i.test(u) || /^blob:/i.test(u)) return true;
-  if (u.includes(R2_PUBLIC_HOST)) return true;
+  if (u.includes(R2_PUBLIC_HOST) || u.includes(R2_PUBLIC_HOST_OLD)) return true;
   if (/^\/images\//i.test(u)) return true;
   if (/tennis0915\.com\/images\//i.test(u)) return true;
   if (/happy-haseyeon\.pages\.dev\/images\//i.test(u)) return true;
