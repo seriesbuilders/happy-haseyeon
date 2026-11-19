@@ -1505,7 +1505,7 @@ async function loadR2Cleanup(view = r2cView) {
   const sum = document.getElementById('r2cSummary');
   const body = document.getElementById('r2cBody');
   if (!sum || !body) return;
-  sum.textContent = '모든 글을 확인하는 중… (10초쯤 걸릴 수 있어요)';
+  sum.textContent = '모든 글을 확인하는 중… (20~30초쯤 걸려요)';
   body.innerHTML = '';
   let data;
   try {
