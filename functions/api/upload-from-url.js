@@ -1,4 +1,4 @@
-import { json, options, requireAdmin } from '../_utils.js';
+import { json, options, requireAdmin, putR2Deduped } from '../_utils.js';
 
 const MAX_IMAGE = 10 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 20000;
@@ -177,14 +177,10 @@ async function mirrorOneUrl(env, rawUrl) {
   try {
     const { bytes, contentType } = await fetchImageBytes(url);
     const ext = extFromContentType(contentType, url);
-    const key = `uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    await env.IMAGES.put(key, bytes, {
-      httpMetadata: { contentType },
-    });
-    const base = (env.R2_PUBLIC_URL || '').replace(/\/$/, '');
-    const mirrorUrl = base ? `${base}/${key}` : `/api/upload?key=${encodeURIComponent(key)}`;
+    // 같은 이미지면 새로 저장하지 않고 기존 주소를 그대로 쓴다
+    const { key, url: mirrorUrl, reused } = await putR2Deduped(env, 'uploads', bytes, ext, contentType);
     // 원본(썸네일 래퍼 포함) URL도 교체되도록 original 기준으로 반환
-    return { url: original, ok: true, mirrorUrl, key };
+    return { url: original, ok: true, mirrorUrl, key, reused };
   } catch (e) {
     const msg = e?.name === 'AbortError' ? '다운로드 시간 초과' : e?.message || '다운로드 실패';
     return { url: original, ok: false, error: msg };

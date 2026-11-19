@@ -14,6 +14,29 @@ export function options() {
   return json({ ok: true });
 }
 
+/**
+ * 파일 내용으로 만든 지문(SHA-256)을 이름으로 R2 에 저장한다.
+ * 같은 파일이 이미 있으면 다시 저장하지 않고 그 주소를 돌려준다 (같은 이미지가 계속 쌓이는 것 방지).
+ * 이름 모양: <prefix>/h-<지문64자>.<확장자>  — 예전 파일(시간-랜덤.jpg)은 그대로 둔다.
+ * 주의: 안 쓰는 파일 찾기 스크립트가 uploads/[A-Za-z0-9._-]+ 모양으로 찾으므로 하위 폴더(/)를 만들지 않는다.
+ * @returns {Promise<{ key: string, url: string, reused: boolean }>}
+ */
+export async function putR2Deduped(env, prefix, bytes, ext, contentType) {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const safeExt = String(ext || '').toLowerCase().replace(/^jpeg$/, 'jpg');
+  const key = `${prefix}/h-${hash}.${/^[a-z0-9]+$/.test(safeExt) ? safeExt : 'jpg'}`;
+
+  const existing = await env.IMAGES.head(key);
+  if (!existing) {
+    await env.IMAGES.put(key, bytes, { httpMetadata: { contentType } });
+  }
+
+  const base = (env.R2_PUBLIC_URL || '').replace(/\/$/, '');
+  const url = base ? `${base}/${key}` : `/api/upload?key=${encodeURIComponent(key)}`;
+  return { key, url, reused: !!existing };
+}
+
 /** 단순 테이블 비밀번호 비교 (세션/JWT 없음, X-Admin-Password 헤더) */
 // 비밀번호 확인 결과를 서버 인스턴스 안에서 5분 기억한다 (DB 연결이 멈출 때 관리자 요청마다 DB 를 한 번 더 기다리지 않도록).
 // 비밀번호를 바꾸면 그 인스턴스에서는 최대 5분 동안 옛 비밀번호가 더 통할 수 있다.

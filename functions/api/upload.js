@@ -1,4 +1,4 @@
-import { json, options, requireAdmin, requireMember } from '../_utils.js';
+import { json, options, requireAdmin, requireMember, putR2Deduped } from '../_utils.js';
 
 const MAX_IMAGE = 10 * 1024 * 1024;
 /** Cloudflare Free/Pro 요청 본문 한도 100MB 이하로 여유 두고 설정 */
@@ -56,14 +56,8 @@ export async function onRequestPost(context) {
   const ext = (file.name || '').split('.').pop()?.toLowerCase() || (isVideo ? 'mp4' : 'jpg');
   const safeExt = /^[a-z0-9]+$/.test(ext) ? ext : isVideo ? 'mp4' : 'jpg';
   const prefix = member?.ok && !admin.ok ? 'members' : isVideo ? 'videos' : 'uploads';
-  const key = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
+  // 같은 파일이면 새로 저장하지 않고 기존 주소를 그대로 쓴다
+  const { key, url, reused } = await putR2Deduped(context.env, prefix, bytes, safeExt, type);
 
-  await context.env.IMAGES.put(key, bytes, {
-    httpMetadata: { contentType: type },
-  });
-
-  const base = (context.env.R2_PUBLIC_URL || '').replace(/\/$/, '');
-  const url = base ? `${base}/${key}` : `/api/upload?key=${encodeURIComponent(key)}`;
-
-  return json({ ok: true, url, key });
+  return json({ ok: true, url, key, reused });
 }
