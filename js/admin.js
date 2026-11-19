@@ -491,6 +491,7 @@ function showPanel(name, category) {
     'ad-comments': '광고 블로그 댓글',
     'ad-stats': '광고 조회수 리포트',
     'pixel-memory': '픽셀 메모리',
+    'r2-cleanup': '사진 정리',
     'main-stats': '조회수 리포트',
     tabs: '카페 탭',
     tags: '인기 태그',
@@ -534,6 +535,7 @@ function showPanel(name, category) {
     loadAdStatsList();
   }
   if (name === 'pixel-memory') loadPixelMemory();
+  if (name === 'r2-cleanup') loadR2Cleanup();
   if (name === 'main-stats') {
     initStatsDateInputs('main');
     initStatsDateInputs('home');
@@ -1477,6 +1479,138 @@ async function loadAdPosts() {
   }
 }
 
+/* ───────── 사진 정리 (R2 휴지통 / 안 쓰는 사진 보기) ───────── */
+let r2cView = 'trash';
+
+function fmtBytes(n) {
+  const v = Number(n) || 0;
+  if (v >= 1048576) return (v / 1048576).toFixed(1) + 'MB';
+  return Math.max(1, Math.round(v / 1024)) + 'KB';
+}
+
+function r2cThumbs(files) {
+  return `<div class="r2c-grid">${files
+    .map(
+      (f) => `<a class="r2c-thumb${f.usedElsewhere ? ' is-kept' : ''}${f.exists === false ? ' is-missing' : ''}" href="${escapeHtml(f.url)}" target="_blank" rel="noopener" title="${escapeHtml(f.key)} · ${fmtBytes(f.size)}${f.usedElsewhere ? ' · 다른 글이 사용 중 (안 지워짐)' : ''}">
+        <img src="${escapeHtml(f.url)}" alt="" loading="lazy" decoding="async" />
+        ${f.usedElsewhere ? '<span class="r2c-badge">다른 글 사용</span>' : ''}
+      </a>`
+    )
+    .join('')}</div>`;
+}
+
+async function loadR2Cleanup(view = r2cView) {
+  r2cView = view;
+  document.querySelectorAll('[data-r2c-view]').forEach((b) => b.classList.toggle('is-active', b.dataset.r2cView === view));
+  const sum = document.getElementById('r2cSummary');
+  const body = document.getElementById('r2cBody');
+  if (!sum || !body) return;
+  sum.textContent = '모든 글을 확인하는 중… (10초쯤 걸릴 수 있어요)';
+  body.innerHTML = '';
+  let data;
+  try {
+    data = await adminFetch(`/api/r2-trash?view=${view}`, { timeoutMs: 90000 });
+  } catch (e) {
+    if (e.message === 'unauthorized') return;
+    sum.textContent = '불러오지 못했습니다: ' + e.message;
+    return;
+  }
+
+  if (view === 'unused') {
+    sum.innerHTML = `저장소(R2) 전체 ${data.r2Total.toLocaleString()}개 중 <strong>어느 글에서도 안 쓰는 사진 ${data.total.toLocaleString()}개 (${fmtBytes(
+      data.bytes
+    )})</strong> · 올라간 날짜별로 묶었습니다. 같은 날 붙여넣은 원본 글의 사진이 대부분 함께 모여 있습니다. 이 화면은 보기만 합니다.`;
+    body.innerHTML = data.groups
+      .map(
+        (g) => `<details class="r2c-group">
+          <summary><strong>${escapeHtml(g.day)}</strong> 올라감 · ${g.count}개 · ${fmtBytes(g.bytes)}</summary>
+          <div class="r2c-group-body" data-r2c-lazy="${escapeHtml(g.day)}"></div>
+        </details>`
+      )
+      .join('') || '<p class="form-hint">안 쓰는 사진이 없습니다.</p>';
+    // 펼칠 때만 썸네일을 그린다 (한꺼번에 1천 장 넘게 불러오지 않도록)
+    const byDay = new Map(data.groups.map((g) => [g.day, g.files]));
+    body.querySelectorAll('details.r2c-group').forEach((d) => {
+      d.addEventListener('toggle', () => {
+        const box = d.querySelector('[data-r2c-lazy]');
+        if (d.open && box && !box.dataset.done) {
+          box.innerHTML = r2cThumbs(byDay.get(box.dataset.r2cLazy) || []);
+          box.dataset.done = '1';
+        }
+      });
+    });
+    return;
+  }
+
+  // 휴지통
+  sum.innerHTML = data.posts.length
+    ? `휴지통에 글 ${data.posts.length}개의 사진 ${data.total}개가 있습니다. 기간이 지나 비우면 <strong>${data.willDelete}개</strong>가 지워집니다 (회색 "다른 글 사용"은 남음).
+       <button type="button" class="btn btn-danger btn-sm" id="btnR2cPurge" style="margin-left:8px">기간 지난 사진 비우기</button>`
+    : `휴지통이 비어 있습니다. 글을 지우면 그 글의 사진이 여기에 ${data.days}일 동안 보관됩니다.`;
+  body.innerHTML = data.posts
+    .map(
+      (p) => `<div class="r2c-post">
+        <div class="r2c-post-head">
+          <div>
+            <strong>#${escapeHtml(p.post_id)} ${escapeHtml(p.title || '(제목 없음)')}</strong>
+            <span class="r2c-meta">/${escapeHtml(p.slug || '')} · 지운 날 ${escapeHtml(formatKst(String(p.trashed_at || '').replace('T', ' ').replace(/(\.\d+)?Z$/, '')))} ·
+              ${p.daysLeft > 0 ? `<strong>${p.daysLeft}일 뒤</strong> 비울 수 있음` : '<strong>지금 비울 수 있음</strong>'} ·
+              사진 ${p.files.length}개 (다른 글 사용 ${p.files.filter((f) => f.usedElsewhere).length}개)</span>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" data-r2c-restore="${escapeHtml(p.post_id)}" title="이 글의 사진을 휴지통에서 빼서 계속 보관">휴지통에서 빼기</button>
+        </div>
+        ${r2cThumbs(p.files)}
+      </div>`
+    )
+    .join('');
+}
+
+async function purgeR2Trash() {
+  const ok = await showConfirm({
+    title: '기간 지난 사진 비우기',
+    message:
+      '휴지통에서 7일이 지난 사진 중, 지금 모든 글을 다시 확인해 어디에서도 안 쓰는 사진만 영구 삭제합니다.\n삭제한 사진은 되살릴 수 없습니다. 계속할까요?',
+    okText: '비우기',
+    cancelText: '취소',
+  });
+  if (!ok) return;
+  showLoading('모든 글을 다시 확인하고 사진을 정리하는 중…', '사진 비우기');
+  try {
+    const r = await adminFetch('/api/r2-trash', { method: 'POST', json: { action: 'purge' }, timeoutMs: 120000 });
+    closeUiModal(true);
+    await showAlert({
+      title: '비우기 완료',
+      message: r.message || `${r.deleted}개를 삭제했고, 다른 글이 쓰고 있는 ${r.kept}개는 남겼습니다.`,
+    });
+  } catch (e) {
+    closeUiModal(false);
+    if (e.message !== 'unauthorized') await showAlert({ title: '비우기 실패', message: e.message, variant: 'error' });
+  }
+  loadR2Cleanup('trash');
+}
+
+async function restoreR2Trash(postId) {
+  try {
+    const r = await adminFetch('/api/r2-trash', { method: 'POST', json: { action: 'restore', post_id: Number(postId) } });
+    toast(`사진 ${r.restored}개를 휴지통에서 뺐습니다 (계속 보관).`);
+  } catch (e) {
+    if (e.message !== 'unauthorized') toast('휴지통에서 빼지 못했습니다: ' + e.message, false);
+  }
+  loadR2Cleanup('trash');
+}
+
+function bindR2Cleanup() {
+  document.querySelectorAll('[data-r2c-view]').forEach((b) =>
+    b.addEventListener('click', () => loadR2Cleanup(b.dataset.r2cView))
+  );
+  document.getElementById('btnR2cRefresh')?.addEventListener('click', () => loadR2Cleanup());
+  document.getElementById('panel-r2-cleanup')?.addEventListener('click', (e) => {
+    if (e.target.closest('#btnR2cPurge')) purgeR2Trash();
+    const rb = e.target.closest('[data-r2c-restore]');
+    if (rb) restoreR2Trash(rb.dataset.r2cRestore);
+  });
+}
+
 async function bulkDeleteAdPosts() {
   const ids = [
     ...document.querySelectorAll(
@@ -1491,7 +1625,7 @@ async function bulkDeleteAdPosts() {
   }
   const ok = await showConfirm({
     title: '광고 블로그 일괄 삭제',
-    message: `선택한 ${ids.length}개 글을 삭제할까요?\n댓글도 함께 삭제되며 되돌릴 수 없습니다.`,
+    message: `선택한 ${ids.length}개 글을 삭제할까요?\n댓글도 함께 삭제되며 되돌릴 수 없습니다.\n(글의 사진은 「사진 정리」 휴지통에 7일 보관되며, 다른 글이 같이 쓰는 사진은 지워지지 않습니다)`,
     okText: '삭제',
     cancelText: '취소',
   });
@@ -4700,7 +4834,7 @@ function bindAdminUI() {
     if (!id) return;
     const ok = await showConfirm({
       title: '게시글 삭제',
-      message: '이 글을 삭제할까요?\n삭제 후에는 되돌릴 수 없습니다.',
+      message: '이 글을 삭제할까요?\n삭제 후에는 되돌릴 수 없습니다.\n(글의 사진은 「사진 정리」 휴지통에 7일 보관되며, 다른 글이 같이 쓰는 사진은 지워지지 않습니다)',
       okText: '삭제',
       cancelText: '취소',
     });
@@ -4792,6 +4926,7 @@ function bindAdminUI() {
   document.getElementById('btnNaverImport')?.addEventListener('click', () =>
     importFromNaverUrl()
   );
+  bindR2Cleanup();
   document.getElementById('btnInsertLinkCard')?.addEventListener('click', () =>
     insertLinkCard()
   );

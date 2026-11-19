@@ -7,7 +7,7 @@
   <title>관리자 — 행복하서연</title>
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/dist/css/suneditor.min.css" />
-  <link rel="stylesheet" href="/css/admin.css?v=20261104-fav" />
+  <link rel="stylesheet" href="/css/admin.css?v=20261119-r2-trash" />
 </head>
 <body class="admin-body">
   <div id="loginView" class="login-wrap">
@@ -48,6 +48,7 @@
             <button type="button" data-panel="ad-comments">광고 블로그 댓글</button>
             <button type="button" data-panel="ad-stats">광고 조회수 리포트</button>
             <button type="button" data-panel="pixel-memory">픽셀 메모리</button>
+            <button type="button" data-panel="r2-cleanup">사진 정리</button>
           </div>
         </div>
 
@@ -710,6 +711,22 @@
           </div>
         </section>
 
+        <section class="panel" id="panel-r2-cleanup">
+          <p class="stats-lead">
+            글을 지우면 그 글의 사진은 바로 지워지지 않고 <strong>휴지통에 7일</strong> 보관됩니다.
+            7일이 지난 뒤 <strong>[기간 지난 사진 비우기]</strong>를 누르면, 그 순간 모든 글을 다시 확인해
+            <strong>어느 글에서도 안 쓰는 사진만</strong> 저장소(R2)에서 영구 삭제합니다.
+            다른 글이 같이 쓰는 사진과 랜딩발행기가 쓰는 사진은 지워지지 않습니다.
+          </p>
+          <div class="r2c-tabs" role="tablist">
+            <button type="button" class="btn btn-ghost btn-sm is-active" data-r2c-view="trash">휴지통</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-r2c-view="unused">안 쓰는 사진 (보기만)</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnR2cRefresh">새로고침</button>
+          </div>
+          <div class="r2c-summary" id="r2cSummary">불러오는 중…</div>
+          <div id="r2cBody"></div>
+        </section>
+
         <section class="panel" id="panel-ad-stats">
           <p class="stats-lead">광고 블로그 전용 일별 조회수입니다. 메인 게시글·홈 방문과는 분리되어 있습니다.</p>
           <div class="stats-toolbar">
@@ -1144,6 +1161,6 @@
   <script src="https://cdn.jsdelivr.net/npm/suneditor@2.47.0/src/lang/ko.js"></script>
   <script src="/js/config.js"></script>
   <script src="/js/naver-paste-sanitize.js?v=20260918-react1"></script>
-  <script src="/js/admin.js?v=20261119-naver-import"></script>
+  <script src="/js/admin.js?v=20261119-r2-trash"></script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 import { json, options, requireAdmin, ensurePostsColumns, ensureCommentsColumns, sortCommentsForDisplay, purgeAdListCache, purgeLandingCache } from '../../_utils.js';
 import { serializeAdPixels } from '../../_pixels.js';
+import { trashKeysOfPost } from '../../_r2-trash.js';
 
 export async function onRequestOptions() {
   return options();
@@ -322,6 +323,16 @@ export async function onRequestDelete(context) {
 
   const id = context.params.id;
   const gone = await context.env.DB.prepare('SELECT slug FROM posts WHERE id = ?').bind(id).first();
+
+  // 이 글의 사진을 휴지통(7일 대기)에 적는다. 파일은 지금 지우지 않는다.
+  // 휴지통 기록이 실패해도 글 삭제는 막지 않는다 (사진은 R2 에 그대로 남을 뿐).
+  let trashed = 0;
+  try {
+    trashed = await trashKeysOfPost(context.env, id);
+  } catch (e) {
+    console.error('trashKeysOfPost', e);
+  }
+
   await context.env.DB.prepare('DELETE FROM comments WHERE post_id = ?')
     .bind(id)
     .run();
@@ -329,5 +340,5 @@ export async function onRequestDelete(context) {
 
   await purgeAdListCache(context.request);
   await purgeLandingCache(context.request, gone?.slug);
-  return json({ ok: true });
+  return json({ ok: true, trashed });
 }
