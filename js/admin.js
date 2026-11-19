@@ -3043,6 +3043,105 @@ async function insertLinkCardFromUrl(rawUrl, { silent = false } = {}) {
   }
 }
 
+/**
+ * 「네이버 주소로 가져오기」: 네이버 공개 글을 서버에서 읽어 네이버와 같은 모양으로 본문을 채운다.
+ * 복사·붙여넣기와 달리 가운데 정렬·제품 카드가 빠지지 않는다.
+ * 사진은 네이버 주소로 들어오고, 「저장」할 때 기존처럼 우리 서버(R2)로 복사된다.
+ */
+async function importFromNaverUrl() {
+  ensureEditor();
+  if (!suneditor) {
+    await showAlert({
+      title: '에디터 준비 중',
+      message: '본문 에디터가 아직 준비되지 않았습니다. 글 작성 화면으로 들어간 뒤 다시 눌러 주세요.',
+      variant: 'error',
+    });
+    return;
+  }
+  const url = window.prompt(
+    '네이버 블로그 글 주소를 넣어 주세요\n예: https://blog.naver.com/아이디/글번호',
+    'https://blog.naver.com/'
+  );
+  if (!url || !url.trim() || /^https:\/\/blog\.naver\.com\/?$/i.test(url.trim())) return;
+
+  const wysiwyg = suneditor.core?.context?.element?.wysiwyg;
+  const hasContent =
+    !!wysiwyg &&
+    (String(wysiwyg.textContent || '').replace(/[\s​]/g, '').length > 0 ||
+      !!wysiwyg.querySelector('img, table'));
+  if (hasContent) {
+    const ok = await showConfirm({
+      title: '본문 바꾸기',
+      message: '지금 본문을 지우고 네이버 글로 바꿉니다. 계속할까요?\n(「저장」 전까지는 실제 글에 반영되지 않습니다)',
+      okText: '바꾸기',
+    });
+    if (!ok) return;
+  }
+
+  showLoading('네이버 글을 불러오는 중…', '네이버 주소로 가져오기');
+  let data;
+  try {
+    data = await adminFetch('/api/naver-import', {
+      method: 'POST',
+      json: { url: url.trim() },
+      timeoutMs: 30000,
+    });
+  } catch (e) {
+    closeUiModal(false);
+    if (e.message === 'unauthorized') return;
+    await showAlert({
+      title: '가져오기 실패',
+      message: e.name === 'TimeoutError' ? '네이버 응답이 너무 늦습니다. 잠시 후 다시 시도해 주세요.' : e.message,
+      variant: 'error',
+    });
+    return;
+  }
+
+  // 네이버는 다른 사이트에서 사진을 바로 못 불러오게 막아서(편집기에서 깨져 보임),
+  // 가져오는 즉시 우리 서버(R2)로 복사한다. 같은 사진은 지문 이름으로 재사용되므로 다시 가져와도 늘지 않는다.
+  let html = data.body;
+  let mirror = { failedCount: 0, mirroredCount: 0 };
+  try {
+    mirror = await replaceExternalImagesInHtml(html);
+    html = mirror.html;
+  } catch (e) {
+    closeUiModal(false);
+    if (e.message === 'unauthorized') return;
+    await showAlert({
+      title: '사진 복사 실패',
+      message: `네이버 사진을 우리 서버로 옮기지 못했습니다. 잠시 후 다시 시도해 주세요.\n(${e.message})`,
+      variant: 'error',
+    });
+    return;
+  }
+
+  try {
+    setEditorHtml(html);
+  } catch (e) {
+    // SunEditor 가 네이버 사진 틀(figure 없는 img)의 크기 조절 정보를 못 찾아 오류를 내도
+    // 본문은 이미 들어가 있으므로 그대로 진행한다
+    console.warn('naver import setContents', e);
+    setTimeout(() => ensureEditableGapAfterImages(), 50);
+  }
+  setTimeout(() => hardenLinkCardsInEditor(), 60);
+  const titleEl = document.getElementById('title');
+  if (titleEl && !titleEl.value.trim() && data.title) titleEl.value = data.title;
+  closeUiModal(true);
+
+  const skipped = (data.skipped || []).length
+    ? `\n가져오지 못한 부분: ${[...new Set(data.skipped)].join(', ')} (영상·지도 등)`
+    : '';
+  await showAlert({
+    title: '가져오기 완료',
+    message:
+      `사진 ${data.images}장, 링크 ${(data.links || []).length}개를 가져왔습니다.` +
+      (mirror.failedCount ? `\n사진 ${mirror.failedCount}장은 옮기지 못해 빠졌습니다.` : '') +
+      skipped +
+      '\n확인 후 「저장」을 눌러야 글에 반영됩니다.',
+    variant: mirror.failedCount ? 'error' : 'info',
+  });
+}
+
 async function insertLinkCard() {
   ensureEditor();
   if (!suneditor) {
@@ -4690,6 +4789,9 @@ function bindAdminUI() {
   bindCommentAvatarComposer('c');
   bindCommentAvatarComposer('adC');
 
+  document.getElementById('btnNaverImport')?.addEventListener('click', () =>
+    importFromNaverUrl()
+  );
   document.getElementById('btnInsertLinkCard')?.addEventListener('click', () =>
     insertLinkCard()
   );
