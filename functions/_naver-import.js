@@ -250,7 +250,9 @@ function styleElement(el, ctx) {
       const sectionStyle = el.closest('.se-section')?.getAttribute('style') || '';
       const cap = (sectionStyle.match(/max-width:\s*(\d+)px/) || [])[1];
       const maxW = cap ? `min(100%,${cap}px)` : '100%';
-      el.setAttribute('style', `border:0;margin:0 auto;padding:0;display:block;position:relative;max-width:${maxW};height:auto`);
+      // 움직이는 사진은 원본이 작아도(예: 282px) 네이버처럼 칸 폭에 꽉 차게 보여 준다
+      const gifWidth = isGif ? 'width:100%;' : '';
+      el.setAttribute('style', `border:0;margin:0 auto;padding:0;display:block;position:relative;${gifWidth}max-width:${maxW};height:auto`);
     }
     if (!el.getAttribute('alt')) el.setAttribute('alt', '');
     return;
