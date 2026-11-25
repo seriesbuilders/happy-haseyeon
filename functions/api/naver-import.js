@@ -28,6 +28,8 @@ export async function onRequestPost(context) {
       images: post.images.length,
       links: post.links,
       skipped: post.skipped,
+      gifs: post.gifs,
+      ownLinksRemoved: post.ownLinksRemoved,
     });
   } catch (e) {
     return json({ error: e?.message || '네이버 글을 가져오지 못했습니다.' }, 400);

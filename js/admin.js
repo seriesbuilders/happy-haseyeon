@@ -3262,6 +3262,9 @@ async function importFromNaverUrl() {
   if (titleEl && !titleEl.value.trim() && data.title) titleEl.value = data.title;
   closeUiModal(true);
 
+  const extra =
+    (data.gifs ? `\n움직이는 사진 ${data.gifs}장 포함.` : '') +
+    (data.ownLinksRemoved ? `\n우리 사이트 링크가 걸린 사진 ${data.ownLinksRemoved}장은 링크만 떼고 가져왔습니다.` : '');
   const skipped = (data.skipped || []).length
     ? `\n가져오지 못한 부분: ${[...new Set(data.skipped)].join(', ')} (영상·지도 등)`
     : '';
@@ -3270,6 +3273,7 @@ async function importFromNaverUrl() {
     message:
       `사진 ${data.images}장, 링크 ${(data.links || []).length}개를 가져왔습니다.` +
       (mirror.failedCount ? `\n사진 ${mirror.failedCount}장은 옮기지 못해 빠졌습니다.` : '') +
+      extra +
       skipped +
       '\n확인 후 「저장」을 눌러야 글에 반영됩니다.',
     variant: mirror.failedCount ? 'error' : 'info',
@@ -3382,6 +3386,8 @@ async function convertPlainLinksInEditor() {
 
     for (const a of anchors) {
       if (a.closest('.link-card, .link-card-url, .link-card-block, .link-card-url-line, .link-card-wrap, table.link-card')) continue;
+      // 사진·영상을 감싼 링크는 카드로 바꾸지 않는다 (바꾸면 사진이 통째로 사라진다)
+      if (a.classList.contains('se-module-image-link') || a.querySelector('img, video, picture, figure') || a.closest('figure')) continue;
       const rawHref = a.getAttribute('href') || a.textContent || '';
       const url = extractSingleUrl(rawHref) || normalizeExternalUrl(rawHref);
       if (!url || !/^https?:\/\//i.test(url)) continue;

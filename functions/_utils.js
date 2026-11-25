@@ -86,7 +86,7 @@ export function adListCacheKey(request) {
 /** 광고 글 페이지 보관본의 키 (주소는 끝에 / 가 붙는 형태로 통일) */
 export function landingCacheKey(request, slug) {
   const origin = new URL(request.url).origin;
-  return new Request(`${origin}/${slug}/`, { method: 'GET' });
+  return new Request(`${origin}/${slug}/?cv=2`, { method: 'GET' }); // cv: 내보내는 방식이 바뀌면 올린다 (옛 보관본을 한꺼번에 버림)
 }
 /** 글·댓글이 바뀌었을 때 그 글의 페이지 보관본을 지운다 (다음 방문자부터 새 내용) */
 export async function purgeLandingCache(request, slug) {

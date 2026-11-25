@@ -100,6 +100,17 @@ function parseLinkData(a) {
 }
 
 /** 네이버 이미지 주소 → 내려받을 수 있는 큰 원본 */
+/** 우리 사이트 주소인지 (랜딩에서 복사해 네이버에 붙인 사진에는 우리 홈 링크가 딸려 온다) */
+const OWN_HOSTS = ['tennis0915.com', 'happy-haseyeon.pages.dev'];
+function isOwnSiteUrl(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return OWN_HOSTS.some((h) => host === h || host.endsWith('.' + h));
+  } catch {
+    return false;
+  }
+}
+
 function bestImageUrl(img, linkData) {
   let src = decode(img.getAttribute('data-lazy-src') || img.getAttribute('src') || '');
   if (linkData?.src) src = linkData.src;
@@ -224,7 +235,10 @@ function styleElement(el, ctx) {
     const a = el.closest('a');
     const data = parseLinkData(a);
     const sticker = hasClass(el, 'se-sticker-image');
-    const src = bestImageUrl(el, sticker ? null : data);
+    // 움직이는 사진(GIF)은 미리 넣어 둔 원본 GIF 주소를 그대로 쓴다 (linkData.src 는 56px 짜리 작은 판이라 쓰면 안 됨)
+    const isGif = el.getAttribute('data-nv-gif') === '1';
+    const src = isGif ? decode(el.getAttribute('src') || '') : bestImageUrl(el, sticker ? null : data);
+    if (isGif) ctx.gifs += 1;
     el.setAttribute('src', src);
     if (src) ctx.images.push(src);
     el.removeAttribute('data-lazy-src');
@@ -245,7 +259,12 @@ function styleElement(el, ctx) {
   if (tag === 'a') {
     if (hasClass(el, 'se-module-image-link')) {
       const data = parseLinkData(el);
-      const link = data?.linkUse === 'true' && /^https?:\/\//i.test(data.link || '') ? data.link : '';
+      let link = data?.linkUse === 'true' && /^https?:\/\//i.test(data.link || '') ? data.link : '';
+      // 사진에 걸린 우리 사이트 링크는 뗀다. 남겨 두면 관리자 편집기가 사진을 홈 링크 카드로 바꿔 버린다.
+      if (link && isOwnSiteUrl(link)) {
+        link = '';
+        ctx.ownLinks += 1;
+      }
       if (link) {
         el.setAttribute('href', link);
         el.setAttribute('target', '_blank');
@@ -393,7 +412,15 @@ export async function fetchNaverPost(rawUrl) {
     decode(doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '').trim();
 
   const text = decode(main.text.replace(/\s+/g, ' ').trim()).replace(/​/g, '');
-  const ctx = { images: [], links: [], skipped: [], zone: 'text', quote: 'default' };
+  const ctx = { images: [], links: [], skipped: [], zone: 'text', quote: 'default', gifs: 0, ownLinks: 0 };
+
+  // 네이버는 움직이는 사진(GIF)을 화면에 낼 때 <video class="_gifmp4"> 영상으로 바꿔 내보낸다.
+  // 영상은 사진 복사 단계에서 "이미지가 아님"으로 빠지므로, 옆에 적힌 원본 GIF 주소의 <img> 로 되돌린다.
+  for (const v of main.querySelectorAll('video')) {
+    const gif = decode(v.getAttribute('data-gif-url') || '');
+    if (!/^https?:\/\//i.test(gif)) continue;
+    v.replaceWith(`<img src="${gif.replace(/"/g, '&quot;')}" class="se-image-resource" data-nv-gif="1" alt="">`);
+  }
   const blocks = [];
   let prevKind = '';
   const comps = main.querySelectorAll('.se-component').filter((c) => !c.parentNode?.closest?.('.se-component'));
@@ -430,6 +457,8 @@ export async function fetchNaverPost(rawUrl) {
     images: [...new Set(ctx.images)],
     links: [...new Set(ctx.links)],
     skipped: ctx.skipped,
+    gifs: ctx.gifs,
+    ownLinksRemoved: ctx.ownLinks,
     description: text.slice(0, 150),
   };
 }

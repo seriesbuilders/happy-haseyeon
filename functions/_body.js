@@ -345,7 +345,26 @@ function stripSavedCitationBlocks(html) {
   return out;
 }
 
+/**
+ * 사진을 감싼 링크 중 주소가 빈칸(" ", "#")이거나 우리 사이트 홈인 것은 href 를 뗀다.
+ * 이런 링크는 일부러 건 것이 아니라 편집기가 채운 것이고, 페이지에 <base href="/"> 가 있어서
+ * 그대로 두면 사진을 누를 때 홈으로 가 버린다. 다른 주소로 일부러 건 사진 링크는 그대로 둔다.
+ * 저장된 글은 바꾸지 않고 내보낼 때만 적용한다.
+ */
+const OWN_HOME_RE = /^(?:https?:)?\/\/(?:www\.)?(?:tennis0915\.com|[a-z0-9-]+\.happy-haseyeon\.pages\.dev|happy-haseyeon\.pages\.dev)\/?$/i;
+export function neutralizeImageLinks(html) {
+  if (!html || html.indexOf('<a') < 0) return html || '';
+  return html.replace(/<a\b([^>]*)>(?=\s*<(?:img|video|picture)\b)/gi, (tag, attrs) => {
+    const m = attrs.match(/\shref\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+    if (!m) return tag;
+    const value = (m[1] ?? m[2] ?? '').trim();
+    const dead = value === '' || value === '#' || value === '/' || OWN_HOME_RE.test(value);
+    if (!dead) return tag;
+    return '<a' + attrs.replace(m[0], '').replace(/\starget\s*=\s*(?:"[^"]*"|'[^']*')/i, '') + '>';
+  });
+}
+
 export function sanitizePostBodyHtml(html) {
-  // 공개 페이지도 에디터 저장본과 동일하게: 빈 카드 복구 + 출처 잔여 제거
-  return stripSavedCitationBlocks(rebuildEmptyLinkCards(html || ''));
+  // 공개 페이지도 에디터 저장본과 동일하게: 빈 카드 복구 + 출처 잔여 제거 + 사진의 빈·홈 링크 무력화
+  return neutralizeImageLinks(stripSavedCitationBlocks(rebuildEmptyLinkCards(html || '')));
 }
