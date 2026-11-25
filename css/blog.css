@@ -180,6 +180,12 @@
   box-sizing: border-box !important;
 }
 
+/* 네이버에서 가져온 글(.nvp): 편집기에서 폭을 100% 로 정한 사진(움직이는 사진 등)은 원본이 작아도 칸에 꽉 채운다.
+   위의 width:auto !important 를 이 경우에만 넘는다. 다른 글·다른 사진에는 영향 없음. */
+.post-body .nvp img[data-size^='100%'] {
+  width: 100% !important;
+}
+
 /* SunEditor 정렬 클래스·data-align → 공개 페이지에서도 유지 */
 .post-body img[data-align='center'],
 .post-body [data-align='center'] > img,

@@ -316,7 +316,7 @@ function renderPost(post, comments, settings, origin = 'https://tennis0915.com')
   ${pixelHead}
   <link rel="stylesheet" href="/css/common.css" />
   <link rel="stylesheet" href="/css/main.css" />
-  <link rel="stylesheet" href="/css/blog.css?v=20260922-secret" />
+  <link rel="stylesheet" href="/css/blog.css?v=20261125-nvpfull" />
 </head>
 <body>
   ${pixelBody}
